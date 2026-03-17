@@ -91,6 +91,8 @@ export const getMyPastQuizzes = () => request("/api/quizzes/past/mine");
 
 export const getExaminerStats = () => request("/api/quizzes/stats/mine");
 
+export const copyQuiz = (id) => request(`/api/quizzes/${id}`);
+
 // ── Attempt APIs ───────────────────────────────────────────
 export const submitAttempt = (quizId, answers) =>
   request(`/api/attempts/${quizId}`, { method: "POST", body: JSON.stringify({ answers }) });

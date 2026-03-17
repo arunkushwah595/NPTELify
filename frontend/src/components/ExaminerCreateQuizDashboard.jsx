@@ -245,6 +245,7 @@ export default function ExaminerCreateQuizDashboard() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const editId = searchParams.get("editId");
+  const copyData = searchParams.get("copyData");
   
   const [meta, setMeta]           = useState({ title:"", subject:"", description:"", date:"", time:"", duration:"30", totalMarks:"" });
   const [questions, setQuestions] = useState([defaultQuestion()]);
@@ -261,9 +262,46 @@ export default function ExaminerCreateQuizDashboard() {
   const dupQ    = i => { const qs=[...questions]; qs.splice(i+1,0,{...questions[i],id:Date.now()}); setQuestions(qs); };
   const addQ    = () => setQuestions([...questions,defaultQuestion()]);
 
-  // Load quiz data if in edit mode
+  // Helper function to decode base64
+  const decodeBase64 = (str) => {
+    try {
+      return JSON.parse(decodeURIComponent(escape(atob(str))));
+    } catch (e) {
+      return JSON.parse(atob(str));
+    }
+  };
+
+  // Load quiz data if in edit mode or copy mode
   useEffect(() => {
-    if (editId) {
+    if (copyData) {
+      try {
+        const decodedData = decodeBase64(copyData);
+        setMeta({
+          title: decodedData.title || "",
+          subject: decodedData.subject || "",
+          description: "",
+          date: "",
+          time: "",
+          duration: decodedData.durationMinutes ? decodedData.durationMinutes.toString() : "30",
+          totalMarks: ""
+        });
+        
+        const loadedQuestions = (decodedData.questions || []).map((q, idx) => ({
+          id: q.id || Date.now() + idx,
+          text: q.text || "",
+          type: q.type || "mcq",
+          marks: "1",
+          required: true,
+          options: q.options || [],
+          correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : null
+        }));
+        setQuestions(loadedQuestions.length > 0 ? loadedQuestions : [defaultQuestion()]);
+        setEditLoading(false);
+      } catch (e) {
+        setErr("Failed to copy quiz: " + e.message);
+        setEditLoading(false);
+      }
+    } else if (editId) {
       getQuizById(editId)
         .then(quiz => {
           setMeta({
@@ -293,7 +331,7 @@ export default function ExaminerCreateQuizDashboard() {
           setEditLoading(false);
         });
     }
-  }, [editId]);
+  }, [editId, copyData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -397,7 +435,7 @@ export default function ExaminerCreateQuizDashboard() {
       <div style={{ background:C.navy,borderRadius:18,padding:"20px 26px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
         <div>
           <div style={{ fontSize:11,color:"#a8c0e0",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4 }}>Quiz Builder</div>
-          <div style={{ fontSize:18,fontWeight:900,color:"#fff" }}>{editId ? "Edit Quiz" : "Create New Quiz"}</div>
+          <div style={{ fontSize:18,fontWeight:900,color:"#fff" }}>{copyData ? "Copy Quiz" : editId ? "Edit Quiz" : "Create New Quiz"}</div>
         </div>
         <div style={{ display:"flex",alignItems:"center",gap:8 }}>
           <span style={{ fontSize:12,color:"#a8c0e0" }}>{questions.length} question{questions.length!==1?"s":""}</span>

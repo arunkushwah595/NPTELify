@@ -26,6 +26,8 @@ export default function QuizPage() {
   const [error,    setError]    = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [result,   setResult]   = useState(null);  // AttemptResponse after submit
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);  // Track tab switches
+  const [showTabWarning, setShowTabWarning] = useState(false);  // Warning modal
 
   useEffect(() => {
     getQuizById(id)
@@ -62,6 +64,32 @@ export default function QuizPage() {
     const t = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(t);
   }, [timeLeft, result, handleSubmit]);
+
+  // Tab switch detection - warn after 3 switches, auto-submit on 4th
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // User switched away from tab
+        const newCount = tabSwitchCount + 1;
+        setTabSwitchCount(newCount);
+
+        if (newCount === 3) {
+          // Show final warning
+          setShowTabWarning(true);
+        } else if (newCount > 3) {
+          // Auto-submit quiz immediately
+          handleSubmit(true);
+          return;
+        } else {
+          // Show warning for switches 1-2
+          setShowTabWarning(true);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [tabSwitchCount, handleSubmit]);
 
   const answeredCount = answers.filter(a => a !== null).length;
   const totalQ        = quiz?.questions?.length || 0;
@@ -148,8 +176,35 @@ export default function QuizPage() {
   // ── Quiz UI ────────────────────────────────────────────────
   const timerColor = timeLeft < 60 ? C.red : timeLeft < 5 * 60 ? C.orange : C.green;
 
+  // Tab switch warning modal
+  const TabWarningModal = () => (
+    <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999 }}>
+      <div style={{ background:C.card, borderRadius:16, maxWidth:400, width:"90%", padding:"32px 28px", boxShadow:"0 16px 48px rgba(0,0,0,0.3)" }}>
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:32, marginBottom:12 }}>⚠️</div>
+          <div style={{ fontSize:18, fontWeight:900, color:C.navy, marginBottom:8 }}>
+            {tabSwitchCount >= 3 ? "Final Warning!" : `Tab Switch Detected (${tabSwitchCount}/3)`}
+          </div>
+          <div style={{ fontSize:14, color:C.body, lineHeight:1.6 }}>
+            {tabSwitchCount >= 3 
+              ? "You've switched tabs 3 times. Any further attempt will automatically submit your quiz!"
+              : `You switched tabs ${tabSwitchCount} time${tabSwitchCount > 1 ? 's' : ''}. You have ${3 - tabSwitchCount} more allowed switch${3 - tabSwitchCount > 1 ? 'es' : ''} before automatic submission.`}
+          </div>
+        </div>
+        <button 
+          onClick={() => setShowTabWarning(false)}
+          style={{ width:"100%", padding:"12px", borderRadius:12, background:C.blue, color:"#fff", border:"none", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:C.font }}>
+          I Understand
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:C.font }}>
+      {/* Tab switch warning modal */}
+      {showTabWarning && <TabWarningModal />}
+      
       {/* Sticky header */}
       <div style={{ position:"sticky", top:0, zIndex:50, background:C.navy, padding:"14px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 2px 16px #1a3a6b28" }}>
         <div>
@@ -157,6 +212,13 @@ export default function QuizPage() {
           <div style={{ fontSize:16, fontWeight:900, color:"#fff", marginTop:2 }}>{quiz.title}</div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:20 }}>
+          {/* Tab Switch Warning */}
+          {tabSwitchCount > 0 && (
+            <div style={{ textAlign:"center", padding:"8px 12px", background:"#fef3c7", borderRadius:8, border:"1.5px solid #fcd34d" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#92400e" }}>⚠️ Tab Switches</div>
+              <div style={{ fontSize:12, fontWeight:900, color:"#dc2626" }}>{tabSwitchCount}/3</div>
+            </div>
+          )}
           {/* Progress */}
           <div style={{ textAlign:"center" }}>
             <div style={{ fontSize:14, fontWeight:900, color:C.orange }}>{answeredCount}/{totalQ}</div>

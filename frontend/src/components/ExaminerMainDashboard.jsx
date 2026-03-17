@@ -19,6 +19,29 @@ const C = {
   font:"'DM Sans','Segoe UI',sans-serif",
 };
 
+// Function to serialize quiz data for URL
+const serializeQuizForCopy = (quiz) => {
+  return BToa(JSON.stringify({
+    title: `Copy of ${quiz.title}`,
+    subject: quiz.subject,
+    durationMinutes: quiz.durationMinutes,
+    questions: (quiz.questions || []).map(q => ({
+      text: q.text,
+      type: q.type || "mcq",
+      options: q.options || [],
+      correctAnswer: q.correctOption !== undefined ? q.correctOption : null,
+    }))
+  }));
+};
+
+const BToa = (str) => {
+  try {
+    return btoa(unescape(encodeURIComponent(str)));
+  } catch (e) {
+    return btoa(str);
+  }
+};
+
 const SUBJ_COLORS = {
   default: { bg:C.altBg, color:C.navy },
 };
@@ -57,6 +80,7 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [copying, setCopying] = useState(false);
   
   const durationLabel = `${quiz.durationMinutes} min`;
   const qCount = quiz.questions?.length || 0;
@@ -106,6 +130,18 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
       setDownloading(false);
     }
   };
+
+  const handleCopyQuiz = async () => {
+    try {
+      setCopying(true);
+      const quizData = serializeQuizForCopy(quiz);
+      navigate(`/examiner/create?copyData=${quizData}`);
+    } catch (error) {
+      console.error("Copy error:", error);
+      alert("Failed to copy quiz: " + (error.message || "Unknown error"));
+      setCopying(false);
+    }
+  };
   
   return (
     <>
@@ -148,6 +184,9 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
               </button>
               <button onClick={handleDownloadPdf} disabled={downloading} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.green,background:"transparent",color:C.green,cursor:downloading?"not-allowed":"pointer",transition:"all 0.2s",opacity:downloading?0.6:1 }}>
                 {downloading ? "⏳ Generating..." : "📥 PDF"}
+              </button>
+              <button onClick={handleCopyQuiz} disabled={copying} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.purple,background:"transparent",color:C.purple,cursor:copying?"not-allowed":"pointer",transition:"all 0.2s",opacity:copying?0.6:1 }}>
+                {copying ? "⏳ Copying..." : "📋 Copy"}
               </button>
             </>
           )}
