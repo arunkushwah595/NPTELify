@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { getAttemptDetail, getMyAttempts } from "../api/quizApi";
+import { getAttemptDetail, getMyAttempts, downloadAttemptPdf } from "../api/quizApi";
 const C = {
   navy: "#1a3a6b", blue: "#2563eb", orange: "#f97316",
   bg: "#f5f8ff", card: "#ffffff", altBg: "#eaf0fb",
@@ -55,6 +55,7 @@ export default function SolutionDashboardPage() {
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   // If no attemptId in state, load the list of attempts for picking
   useEffect(() => {
@@ -75,6 +76,18 @@ export default function SolutionDashboardPage() {
       .then(data => { setDetail(data); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }, [attemptId]);
+
+  const handleDownloadPdf = async () => {
+    setDownloadingId(attemptId);
+    try {
+      await downloadAttemptPdf(attemptId);
+    } catch (err) {
+      console.error("Download failed:", err);
+      alert("Failed to download PDF: " + err.message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   // — Picker screen —
   if (attemptId == null) {
@@ -126,11 +139,20 @@ export default function SolutionDashboardPage() {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       {/* Back link */}
-      <button onClick={() => { setAttemptId(null); setDetail(null); setError(null); }}
-        style={{ alignSelf:"flex-start", background:"none", border:"none", color:C.blue, fontSize:13, fontWeight:700, cursor:"pointer", padding:0, display:"flex", alignItems:"center", gap:6 }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14,height:14 }}><path d="M15 18l-6-6 6-6"/></svg>
-        All Attempts
-      </button>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+        <button onClick={() => { setAttemptId(null); setDetail(null); setError(null); }}
+          style={{ background:"none", border:"none", color:C.blue, fontSize:13, fontWeight:700, cursor:"pointer", padding:0, display:"flex", alignItems:"center", gap:6 }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14,height:14 }}><path d="M15 18l-6-6 6-6"/></svg>
+          All Attempts
+        </button>
+        <button
+          onClick={handleDownloadPdf}
+          disabled={downloadingId === attemptId}
+          style={{ background:C.blue, color:"#fff", border:"none", borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:downloadingId === attemptId ? "not-allowed" : "pointer", opacity:downloadingId === attemptId ? 0.6 : 1, display:"flex", alignItems:"center", gap:6 }}
+        >
+          {downloadingId === attemptId ? "⏳" : "📥"} Download PDF
+        </button>
+      </div>
       {/* Result card */}
       <div style={{ background:C.card, borderRadius:20, border:`1.5px solid ${C.border}`, overflow:"hidden" }}>
         <div style={{ background:C.navy, padding:"20px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:14, position:"relative", overflow:"hidden" }}>

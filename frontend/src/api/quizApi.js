@@ -100,3 +100,67 @@ export const getMyAttempts = () => request("/api/attempts/my");
 export const getAttemptsForQuiz = (quizId) => request(`/api/attempts/quiz/${quizId}`);
 
 export const getAttemptDetail = (attemptId) => request(`/api/attempts/${attemptId}`);
+
+export const downloadAttemptPdf = async (attemptId) => {
+  const token = localStorage.getItem("token");
+  const headers = {};
+  if (token && token !== "null" && token !== "undefined") {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/attempts/${attemptId}/download-pdf`, {
+    method: "GET",
+    headers,
+  });
+
+  if (response.status === 401) {
+    clearAuthAndRedirect();
+    throw new Error("Session expired. Please log in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to download PDF: HTTP ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Quiz_Report_Attempt_${attemptId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+};
+
+export const downloadQuizReportPdf = async (quizId) => {
+  const token = localStorage.getItem("token");
+  const headers = {};
+  if (token && token !== "null" && token !== "undefined") {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/quizzes/${quizId}/download-pdf`, {
+    method: "GET",
+    headers,
+  });
+
+  if (response.status === 401) {
+    clearAuthAndRedirect();
+    throw new Error("Session expired. Please log in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to download PDF: HTTP ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Quiz_Report_${quizId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+};

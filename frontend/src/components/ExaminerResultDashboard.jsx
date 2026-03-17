@@ -1,7 +1,7 @@
 // ExaminerResultsDashboard.jsx
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getMyQuizzes, getAttemptsForQuiz } from "../api/quizApi";
+import { getMyQuizzes, getAttemptsForQuiz, downloadQuizReportPdf } from "../api/quizApi";
 
 const C = {
   navy:"#1a3a6b",blue:"#2563eb",orange:"#f97316",green:"#16a34a",red:"#dc2626",purple:"#7c3aed",
@@ -122,6 +122,7 @@ export default function ExaminerResultDashboard() {
   const [loadingA,   setLoadingA]   = useState(false);
   const [errorQ,     setErrorQ]     = useState(null);
   const [errorA,     setErrorA]     = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     getMyQuizzes()
@@ -146,6 +147,19 @@ export default function ExaminerResultDashboard() {
       .then(data => { setAttempts(data); setLoadingA(false); })
       .catch(e  => { setErrorA(e.message); setLoadingA(false); });
   }, [selectedId]);
+
+  const handleDownloadPdf = async () => {
+    if (!selectedId) return;
+    setDownloadingId(selectedId);
+    try {
+      await downloadQuizReportPdf(selectedId);
+    } catch (err) {
+      console.error("Download failed:", err);
+      alert("Failed to download PDF: " + err.message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const totalSubmitted = attempts.length;
   const avgPct = attempts.length > 0
@@ -176,12 +190,20 @@ export default function ExaminerResultDashboard() {
         ) : quizzes.length === 0 ? (
           <span style={{ fontSize:13,color:C.muted }}>No quizzes found. Create one first.</span>
         ) : (
-          <select value={selectedId ?? ""} onChange={e => setSelectedId(Number(e.target.value))}
-            style={{ padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.bg,color:C.navy,fontSize:13,fontFamily:C.font,outline:"none",flex:1,maxWidth:440 }}>
-            {quizzes.map(q => (
-              <option key={q.id} value={q.id}>{q.title} — {q.subject}</option>
-            ))}
-          </select>
+          <>
+            <select value={selectedId ?? ""} onChange={e => setSelectedId(Number(e.target.value))}
+              style={{ padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.bg,color:C.navy,fontSize:13,fontFamily:C.font,outline:"none",flex:1,maxWidth:440 }}>
+              {quizzes.map(q => (
+                <option key={q.id} value={q.id}>{q.title} — {q.subject}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleDownloadPdf}
+              disabled={downloadingId === selectedId || !selectedId}
+              style={{ padding:"9px 16px",borderRadius:10,background:downloadingId===selectedId?"#e5e7eb":C.green,color:"#fff",border:"none",fontSize:12,fontWeight:700,cursor:downloadingId===selectedId?"not-allowed":"pointer",fontFamily:C.font,display:"flex",alignItems:"center",gap:6,opacity:downloadingId===selectedId?0.6:1,transition:"all 0.15s",whiteSpace:"nowrap" }}>
+              {downloadingId === selectedId ? "⏳ Generating..." : "📥 Download PDF"}
+            </button>
+          </>
         )}
       </div>
 

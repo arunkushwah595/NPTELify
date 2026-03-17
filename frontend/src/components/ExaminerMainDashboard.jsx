@@ -1,6 +1,6 @@
 // ExaminerMainDashboard.jsx
 import { useState, useEffect } from "react";
-import { getMyQuizzes, deleteQuiz } from "../api/quizApi";
+import { getMyQuizzes, deleteQuiz, downloadQuizReportPdf } from "../api/quizApi";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { notificationStore } from "../utils/notificationStore";
@@ -56,6 +56,7 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
   const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   
   const durationLabel = `${quiz.durationMinutes} min`;
   const qCount = quiz.questions?.length || 0;
@@ -94,6 +95,18 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
     navigate(`/examiner/results?quizId=${quiz.id}`);
   };
   
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloading(true);
+      await downloadQuizReportPdf(quiz.id);
+      setDownloading(false);
+    } catch (error) {
+      console.error("Download error:", error);
+      alert("Failed to download PDF: " + (error.message || "Unknown error"));
+      setDownloading(false);
+    }
+  };
+  
   return (
     <>
       <div style={{ padding:"13px 14px",borderRadius:12,border:`1.5px solid ${C.border}`,background:C.bg }}>
@@ -129,9 +142,14 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
             </>
           )}
           {quizType === "past" && (
-            <button onClick={handleReview} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.blue,background:"transparent",color:C.blue,cursor:"pointer",transition:"all 0.2s" }}>
-              📊 Review
-            </button>
+            <>
+              <button onClick={handleReview} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.blue,background:"transparent",color:C.blue,cursor:"pointer",transition:"all 0.2s" }}>
+                📊 Review
+              </button>
+              <button onClick={handleDownloadPdf} disabled={downloading} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.green,background:"transparent",color:C.green,cursor:downloading?"not-allowed":"pointer",transition:"all 0.2s",opacity:downloading?0.6:1 }}>
+                {downloading ? "⏳ Generating..." : "📥 PDF"}
+              </button>
+            </>
           )}
           {quizType === "live" && (
             <div style={{ fontSize:12,color:C.muted,fontStyle:"italic" }}>Quiz in progress</div>

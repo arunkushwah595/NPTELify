@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { getMyAttempts } from "../api/quizApi";
+import { getMyAttempts, downloadAttemptPdf } from "../api/quizApi";
 
 const C = {
   navy: "#1a3a6b", blue: "#2563eb", orange: "#f97316",
@@ -72,6 +72,7 @@ export default function ResultsDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date()); // For month navigation
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     getMyAttempts()
@@ -91,6 +92,18 @@ export default function ResultsDashboardPage() {
 
   const goToNextMonth = () => {
     setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1));
+  };
+
+  const handleDownloadPdf = async (attemptId) => {
+    setDownloadingId(attemptId);
+    try {
+      await downloadAttemptPdf(attemptId);
+    } catch (err) {
+      console.error("Download failed:", err);
+      alert("Failed to download PDF: " + err.message);
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const monthYearString = selectedMonth.toLocaleString("default", { month: "long", year: "numeric" });
@@ -256,10 +269,17 @@ export default function ResultsDashboardPage() {
                       </td>
                       <td style={{ padding:"11px 14px", fontSize:12, color:C.muted }}>{date}</td>
                       <td style={{ padding:"11px 14px" }}>
-                        <button
-                          onClick={() => navigate("/candidate/solutions", { state:{ attemptId: r.id } })}
-                          style={{ fontSize:11, fontWeight:700, color:C.blue, background:"none", border:`1px solid ${C.blue}`, borderRadius:8, padding:"4px 10px", cursor:"pointer" }}
-                        >Review</button>
+                        <div style={{ display:"flex", gap:6 }}>
+                          <button
+                            onClick={() => navigate("/candidate/solutions", { state:{ attemptId: r.id } })}
+                            style={{ fontSize:11, fontWeight:700, color:C.blue, background:"none", border:`1px solid ${C.blue}`, borderRadius:8, padding:"4px 10px", cursor:"pointer" }}
+                          >Review</button>
+                          <button
+                            onClick={() => handleDownloadPdf(r.id)}
+                            disabled={downloadingId === r.id}
+                            style={{ fontSize:11, fontWeight:700, color:downloadingId === r.id ? C.muted : "#16a34a", background:"none", border:`1px solid ${downloadingId === r.id ? C.border : "#16a34a"}`, borderRadius:8, padding:"4px 10px", cursor:downloadingId === r.id ? "not-allowed" : "pointer", opacity:downloadingId === r.id ? 0.6 : 1 }}
+                          >{downloadingId === r.id ? "⏳" : "📥"} PDF</button>
+                        </div>
                       </td>
                     </tr>
                   );
