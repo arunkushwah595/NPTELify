@@ -1,5 +1,5 @@
 import StudentDashboardLayout from "../components/StudentDashboardLayout";
-import SolutionDashboardPage from "../components/SolutionDashBoardPage";
+import SolutionDashboardPage from "../components/SolutionDashboardPage";
 
 export default function StudentSolutionsDashboardPageWrapper() {
   return (
