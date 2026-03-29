@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import ResultsDashboardPage from "../components/ResultDashboardPage";
 import ProgressDashboardPage from "../components/ProgressDashboardPage";
-import SolutionDashboardPage from "../components/SolutionDashBoardPage";
+import SolutionDashboardPage from "../components/SolutionDashboardPage";
 import MainDashboardPage from "../components/MainDashboardPage";
 import NotificationCenter from "../components/NotificationCenter";
 import ProfileDropdown from "../components/ProfileDropdown";
