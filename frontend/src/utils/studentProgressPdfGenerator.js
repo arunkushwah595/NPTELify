@@ -188,77 +188,32 @@ export const generateStudentProgressPDF = async (studentData, classStats) => {
 
   yPos = metricY + 35;
 
-  // Score Trend Section with Dotted Line Graph
-  checkPageBreak(50);
-  addText('Score Progression', 15, yPos, 14, 'bold');
-  yPos += 12;
+  // Recommendations Section
+  checkPageBreak(35);
+  addText('Recommendations', 15, yPos, 12, 'bold');
+  yPos += 8;
 
-  if (studentData.scoresTrend && studentData.scoresTrend.length > 0) {
-    const graphX = 20;
-    const graphStartY = yPos;
-    const graphWidth = pageWidth - 40;
-    const graphHeight = 25;
-    const maxScore = 100;
-    const scoresCount = Math.min(5, studentData.scoresTrend.length);
-    const pointSpacingX = graphWidth / (scoresCount - 1 || 1);
+  const recommendations = Math.round(studentData.averageScore) >= 60 
+    ? [
+        '✓ Continue practicing with regular quizzes',
+        '✓ Focus on maintaining consistency',
+        '✓ Help other students as peer mentor'
+      ]
+    : [
+        '• Review concepts from recent quizzes',
+        '• Practice with additional exercises',
+        '• Schedule session with instructor',
+        '• Join study group for peer support'
+      ];
 
-    // Draw graph background
-    pdf.setFillColor(...hexToRgb('#f9fafb'));
-    pdf.rect(graphX - 2, graphStartY, graphWidth + 4, graphHeight, 'F');
+  recommendations.forEach((rec) => {
+    pdf.setFillColor(...hexToRgb('#fafbfc'));
+    pdf.rect(15, yPos - 6, pageWidth - 30, 7, 'F');
+    addText(rec, 20, yPos - 1, 10, 'normal', COLORS.navy);
+    yPos += 8;
+  });
 
-    // Draw grid lines
-    pdf.setDrawColor(...hexToRgb(COLORS.border));
-    pdf.setLineWidth(0.3);
-    for (let i = 0; i <= 4; i++) {
-      const gridY = graphStartY + (graphHeight / 4) * i;
-      pdf.line(graphX - 2, gridY, graphX + graphWidth + 2, gridY);
-      addText(`${100 - i * 25}%`, graphX - 10, gridY + 1, 8, 'normal', COLORS.gray);
-    }
-
-    // Calculate points
-    const points = studentData.scoresTrend.map((score, idx) => {
-      const x = graphX + (graphWidth * idx) / Math.max(scoresCount - 1, 1);
-      const y = graphStartY + graphHeight - (score / maxScore) * graphHeight;
-      return { x, y, score };
-    });
-
-    // Draw dotted line connecting points
-    pdf.setDrawColor(...hexToRgb(COLORS.blue));
-    pdf.setLineWidth(1.5);
-    pdf.setLineDash([1.5, 1.5]); // Dotted pattern
-    
-    for (let i = 0; i < points.length - 1; i++) {
-      pdf.line(points[i].x, points[i].y, points[i + 1].x, points[i + 1].y);
-    }
-    
-    pdf.setLineDash([]); // Reset to solid
-
-    // Draw points and labels
-    points.forEach((point) => {
-      // Draw circle at point
-      pdf.setFillColor(...hexToRgb(COLORS.blue));
-      pdf.circle(point.x, point.y, 1.2, 'F');
-      
-      // Draw score label above point
-      addText(`${point.score}%`, point.x - 1.5, point.y - 3, 9, 'bold', COLORS.blue);
-    });
-
-    // Draw x-axis
-    pdf.setDrawColor(...hexToRgb(COLORS.border));
-    pdf.setLineWidth(0.5);
-    pdf.setLineDash([]);
-    pdf.line(graphX - 2, graphStartY + graphHeight, graphX + graphWidth + 2, graphStartY + graphHeight);
-
-    // Draw quiz labels
-    points.forEach((point, idx) => {
-      addText(`Q${idx + 1}`, point.x - 2.5, graphStartY + graphHeight + 3, 8, 'normal', COLORS.gray);
-    });
-
-    yPos = graphStartY + graphHeight + 12;
-  } else {
-    addText('No score data available', 15, yPos, 11);
-    yPos += 12;
-  }
+  yPos += 5;
 
   // Class Comparison
   if (classStats) {
