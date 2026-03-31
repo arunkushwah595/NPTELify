@@ -1,24 +1,10 @@
-# NPTELify Application Configuration Example
-# Copy this file to application.properties and fill in your own values
-# DO NOT commit application.properties with real credentials to version control
-
-# Application Name
 spring.application.name=nptelify
-
-# PostgreSQL Database Configuration
-# Replace with your database URL, username, and password
 spring.datasource.url=jdbc:postgresql://localhost:5432/nptelify
 spring.datasource.username=postgres
 spring.datasource.password=your_database_password_here
 spring.datasource.driver-class-name=org.postgresql.Driver
-
-# JPA / Hibernate Configuration
-# ddl-auto options: update, validate, create, create-drop
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 spring.jpa.open-in-view=false
-
-# JWT Configuration
-# Change the secret to a strong, random key in production
 app.jwt.secret=your-secure-jwt-secret-key-change-this-in-production
 app.jwt.expiration=86400000
