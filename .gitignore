@@ -1,0 +1,37 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build
+target/
+dist/
+build/
+*.jar
+*.war
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+application.properties
+application-*.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
