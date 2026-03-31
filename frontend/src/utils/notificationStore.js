@@ -21,7 +21,6 @@ function loadNotifications() {
     const stored = localStorage.getItem(getStorageKey());
     notifications = stored ? JSON.parse(stored) : [];
   } catch (e) {
-    console.error("Failed to load notifications:", e);
     notifications = [];
   }
 }
@@ -31,7 +30,7 @@ function saveNotifications() {
   try {
     localStorage.setItem(getStorageKey(), JSON.stringify(notifications));
   } catch (e) {
-    console.error("Failed to save notifications:", e);
+    // Silent fail
   }
 }
 
@@ -41,7 +40,6 @@ function loadDeletedHashes() {
     const stored = localStorage.getItem(getStorageKey("deleted"));
     return stored ? JSON.parse(stored) : [];
   } catch (e) {
-    console.error("Failed to load deleted hashes:", e);
     return [];
   }
 }
@@ -51,7 +49,7 @@ function saveDeletedHashes(hashes) {
   try {
     localStorage.setItem(getStorageKey("deleted"), JSON.stringify(hashes));
   } catch (e) {
-    console.error("Failed to save deleted hashes:", e);
+    // Silent fail
   }
 }
 

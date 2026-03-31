@@ -114,7 +114,7 @@ export const generateStudentProgressPDF = async (studentData, classStats) => {
     pdf.setTextColor(...hexToRgb('#f97316'));
     pdf.text('ify', textX + nptelWidth - 0.5, 10);
   } catch (err) {
-    console.error("Failed to load dashboard button:", err);
+    // Silently continue if dashboard button fails to load
   }
   
   // Add centered title with professional, attractive heading style (positioned below logo/branding)

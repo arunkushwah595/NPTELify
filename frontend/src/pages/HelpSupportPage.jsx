@@ -385,7 +385,6 @@ export default function HelpSupportPage() {
       setContactStatus({ type: "error", message: "Please fill in all fields" });
       return;
     }
-    console.log("Contact form submitted:", contactForm);
     setContactStatus({ type: "success", message: "Thank you! We'll get back to you soon." });
     setContactForm({ name: "", email: "", subject: "", message: "" });
     setTimeout(() => setContactStatus(null), 3000);

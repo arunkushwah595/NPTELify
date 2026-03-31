@@ -31,23 +31,9 @@ async function request(url, options = {}) {
     }
   };
   
-  console.log("🔵 API Request:", {
-    url: fullUrl,
-    method: options.method || "GET",
-    authToken: authHeaders.Authorization ? "✓ Present" : "✗ Missing",
-    tokenLength: token?.length || 0,
-  });
-  
   const res = await fetch(fullUrl, fetchOptions);
   
-  console.log("📊 Response Status:", res.status, res.statusText);
-  console.log("📊 Response Headers:", {
-    contentType: res.headers.get("content-type"),
-  });
-  
   if (res.status === 401) {
-    console.error("❌ 401 Unauthorized - Token rejected by backend");
-    console.error("Token in localStorage:", token ? "✓ Present, length: " + token.length : "✗ Missing");
     clearAuthAndRedirect();
     throw new Error("Session expired. Please log in again.");
   }
@@ -58,7 +44,6 @@ async function request(url, options = {}) {
   
   if (!res.ok) {
     const errorMessage = data.message || data.error || `HTTP ${res.status}: Request failed`;
-    console.error("❌ Request failed:", errorMessage);
     throw new Error(errorMessage);
   }
   

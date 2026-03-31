@@ -48,9 +48,7 @@ export default function QuizPage() {
         
         // Request fullscreen mode on quiz load
         if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(err => {
-            console.log("⚠️ Fullscreen request failed:", err);
-          });
+          document.documentElement.requestFullscreen().catch(() => {});
         }
       })
       .catch(e => { setError(e.message); setLoading(false); });
@@ -125,19 +123,16 @@ export default function QuizPage() {
 
     // Mark if we're leaving the quiz page
     if (!isCurrentlyOnQuiz && pageLeftRef.current === false) {
-      console.log("🔙 Left quiz page via navigation");
       pageLeftRef.current = true;
     }
 
     // If we were away and now returning to this specific quiz page
     if (isCurrentlyOnQuiz && pageLeftRef.current === true) {
-      console.log("↩️ Returned to quiz page via back/forward!");
       pageLeftRef.current = false;
       
       const newCount = tabSwitchCount + 1;
       setTabSwitchCount(newCount);
       sessionStorage.setItem(`quiz_${id}_tabSwitches`, newCount);
-      console.log(`📊 Back/Forward Navigation detected! Count: ${newCount}/3`);
 
       if (newCount === 1) {
         setShowTabWarning(true);
@@ -186,15 +181,12 @@ export default function QuizPage() {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         pageLeftViaNavigation = true;
-        console.log("👁️ Page hidden (tab/navigation away)");
       } else if (pageLeftViaNavigation) {
         // Page became visible after being hidden
-        console.log("👁️ Page visible again!");
         pageLeftViaNavigation = false;
         const newCount = tabSwitchCount + 1;
         setTabSwitchCount(newCount);
         sessionStorage.setItem(`quiz_${id}_tabSwitches`, newCount);
-        console.log(`📊 Navigation/Tab switch detected! Count: ${newCount}/3`);
 
         if (newCount === 3) {
           setShowTabWarning(true);
@@ -208,19 +200,16 @@ export default function QuizPage() {
 
     // Also detect leaving page entirely
     const handleBeforeUnload = () => {
-      console.log("🚪 beforeunload - user leaving page");
       pageLeftViaNavigation = true;
     };
 
     // When page regains focus after beforeunload
     const handleFocus = () => {
       if (pageLeftViaNavigation) {
-        console.log("🎯 Page refocused after navigation!");
         pageLeftViaNavigation = false;
         const newCount = tabSwitchCount + 1;
         setTabSwitchCount(newCount);
         sessionStorage.setItem(`quiz_${id}_tabSwitches`, newCount);
-        console.log(`📊 Back/Forward detected! Count: ${newCount}/3`);
 
         if (newCount === 3) {
           setShowTabWarning(true);

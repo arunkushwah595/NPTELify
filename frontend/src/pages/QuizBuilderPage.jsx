@@ -105,9 +105,7 @@ export default function QuizBuilderPage() {
         })),
       };
 
-      console.log("Creating quiz with payload:", quizPayload);
       const response = await createQuiz(quizPayload);
-      console.log("Quiz created successfully:", response);
       
       // Show success notification
       notificationStore.notifyQuizCreated(quizPayload.title);
