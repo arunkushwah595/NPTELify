@@ -1,7 +1,0 @@
-backend
-HELP.md
-SETUP.md
-NOTIFICATIONS_AND_QUESTION_BANK.md
-.git
-.env.local
-.env.*.local
