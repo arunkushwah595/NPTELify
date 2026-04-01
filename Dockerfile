@@ -20,5 +20,8 @@ COPY --from=builder /app/backend/target/nptelify-0.0.1-SNAPSHOT.jar app.jar
 # Expose port
 EXPOSE 8080
 
-# Run the application
-ENTRYPOINT ["java", "-Dserver.port=8080", "-jar", "app.jar"]
+# Set default PORT if not provided by Railway
+ENV PORT=8080
+
+# Run the application using shell form for better env var handling
+CMD java -Dserver.port=${PORT} -jar app.jar
