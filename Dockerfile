@@ -1,4 +1,4 @@
-# Build stage
+# Build stage - Railway rebuild 2026-04-01
 FROM maven:3.9-eclipse-temurin-17 AS builder
 
 WORKDIR /app
@@ -7,7 +7,7 @@ WORKDIR /app
 COPY . .
 
 # Build the backend
-RUN cd backend && mvn clean package -DskipTests
+RUN cd backend && mvn clean package -DskipTests -o || mvn clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:17-jre
