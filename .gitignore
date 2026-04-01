@@ -4,6 +4,9 @@
 *.swp
 *.swo
 *~
+DEPLOYMENT.md
+QUICK_DEPLOYMENT.md
+DEPLOYMENT_CHECKLIST.md
 
 # Build
 target/
