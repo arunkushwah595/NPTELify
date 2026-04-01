@@ -1,18 +1,20 @@
-# Multi-stage build for NPTELify Backend
-FROM maven:3.9.6-eclipse-temurin-17 as BUILD
-
-WORKDIR /app/backend
-COPY backend/pom.xml .
-COPY backend/src ./src
-RUN mvn clean package -DskipTests
-
-# Final image
-FROM eclipse-temurin:17-jre-alpine
+# Simple single-stage Dockerfile
+FROM maven:3.9.6-eclipse-temurin-17-alpine
 
 WORKDIR /app
-COPY --from=BUILD /app/backend/target/nptelify-0.0.1-SNAPSHOT.jar app.jar
 
-ENV PORT=8080
+# Copy entire project
+COPY . .
+
+# Build backend JAR
+WORKDIR /app/backend
+RUN mvn clean package -DskipTests -q
+
+# Set working directory back to app root
+WORKDIR /app
+
+# Expose port
 EXPOSE 8080
 
-CMD ["java", "-Dserver.port=8080", "-jar", "app.jar"]
+# Run the JAR
+ENTRYPOINT ["java", "-Dserver.port=8080", "-jar", "/app/backend/target/nptelify-0.0.1-SNAPSHOT.jar"]
