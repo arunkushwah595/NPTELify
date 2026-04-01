@@ -15,10 +15,10 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Copy built JAR from builder
-COPY --from=builder /app/backend/target/nptelify-0.0.1-SNAPSHOT.jar .
+COPY --from=builder /app/backend/target/nptelify-0.0.1-SNAPSHOT.jar app.jar
 
 # Expose port
 EXPOSE 8080
 
 # Run the application
-CMD ["java", "-Dserver.port=8080", "-jar", "nptelify-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["java", "-Dserver.port=8080", "-jar", "app.jar"]
