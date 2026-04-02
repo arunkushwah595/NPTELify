@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { getMyAttempts, downloadAttemptPdf } from "../api/quizApi";
+import { getMyAttempts, downloadAttemptPdf, getQuizById } from "../api/quizApi";
 
 const C = {
   navy: "#1a3a6b", blue: "#2563eb", orange: "#f97316",
@@ -85,6 +85,35 @@ export default function ResultsDashboardPage() {
   const [error, setError] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date()); // For month navigation
   const [downloadingId, setDownloadingId] = useState(null);
+  const [quiz, setQuiz] = useState(null); // Store quiz data for end time validation
+  const [quizEnded, setQuizEnded] = useState(false); // Track if quiz has ended
+
+  // Check if quiz has ended
+  useEffect(() => {
+    if (!quizId) {
+      setQuizEnded(true); // Show all attempts if no specific quiz
+      return;
+    }
+
+    getQuizById(parseInt(quizId))
+      .then(q => {
+        setQuiz(q);
+        const now = new Date();
+        const scheduled = new Date(q.scheduledDateTime);
+
+        // Determine end time based on scheduling mode
+        let endTime;
+        if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+          endTime = new Date(q.windowEndDateTime);
+        } else {
+          endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+        }
+
+        // Quiz has ended if current time >= end time
+        setQuizEnded(now >= endTime);
+      })
+      .catch(e => console.warn("Could not validate quiz end time:", e));
+  }, [quizId]);
 
   useEffect(() => {
     getMyAttempts()
@@ -167,6 +196,41 @@ export default function ResultsDashboardPage() {
   });
 
   const sorted = [...selectedMonthAttempts].sort((a,b) => b.percentage - a.percentage);
+
+  // If quiz ID is specified and quiz hasn't ended yet, show message
+  if (quizId && quiz && !quizEnded) {
+    const scheduled = new Date(quiz.scheduledDateTime);
+    let endTime;
+    if (quiz.schedulingMode === "WINDOW" && quiz.windowEndDateTime) {
+      endTime = new Date(quiz.windowEndDateTime);
+    } else {
+      endTime = new Date(scheduled.getTime() + quiz.durationMinutes * 60 * 1000);
+    }
+    const timeRemaining = Math.ceil((endTime - new Date()) / 60000);
+    
+    return (
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"400px", fontFamily:C.font }}>
+        <div style={{ background:C.card, borderRadius:20, border:`1.5px solid ${C.border}`, padding:"48px 40px", maxWidth:500, textAlign:"center", boxShadow:"0 4px 16px #1a3a6b12" }}>
+          <div style={{ width:60, height:60, borderRadius:"50%", background:"#fef3c7", margin:"0 auto 20px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28 }}>⏳</div>
+          <h2 style={{ fontSize:20, fontWeight:900, color:C.navy, margin:"0 0 8px" }}>Results Not Available Yet</h2>
+          <p style={{ fontSize:13, color:C.body, lineHeight:1.6, margin:"0 0 20px" }}>
+            The quiz is still ongoing. Results will be available after the quiz ends{quiz.schedulingMode === "WINDOW" ? " (when the window closes)" : ""}.
+          </p>
+          {timeRemaining > 0 && (
+            <div style={{ padding:"12px 16px", borderRadius:12, background:C.altBg, border:`1px solid ${C.border}`, marginBottom:20 }}>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Quiz ends in approximately</div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.orange }}>{timeRemaining} minute{timeRemaining !== 1 ? 's' : ''}</div>
+            </div>
+          )}
+          <button 
+            onClick={() => navigate("/candidate/dashboard")}
+            style={{ padding:"12px 32px", borderRadius:12, background:C.blue, color:"#fff", border:"none", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:C.font }}>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>

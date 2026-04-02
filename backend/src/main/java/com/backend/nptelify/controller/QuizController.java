@@ -4,6 +4,8 @@ import com.backend.nptelify.dto.ExaminerStatsResponse;
 import com.backend.nptelify.dto.QuizRequest;
 import com.backend.nptelify.dto.QuizResponse;
 import com.backend.nptelify.dto.AttemptResponse;
+import com.backend.nptelify.dto.CandidateQuizDataResponse;
+import com.backend.nptelify.dto.QuizStatusResponse;
 import com.backend.nptelify.service.QuizService;
 import com.backend.nptelify.service.PdfReportService;
 import com.backend.nptelify.service.AttemptService;
@@ -52,6 +54,20 @@ public class QuizController {
     @GetMapping("/{id}")
     public ResponseEntity<QuizResponse> getQuizById(@PathVariable Long id) {
         return ResponseEntity.ok(quizService.getQuizById(id));
+    }
+
+    @GetMapping("/{id}/candidate-data")
+    public ResponseEntity<CandidateQuizDataResponse> getCandidateQuizData(
+            @PathVariable Long id,
+            Principal principal) {
+        return ResponseEntity.ok(quizService.getCandidateQuizData(id, principal.getName()));
+    }
+
+    @GetMapping("/{id}/status")
+    public ResponseEntity<QuizStatusResponse> getQuizStatus(
+            @PathVariable Long id,
+            Principal principal) {
+        return ResponseEntity.ok(quizService.getQuizStatusForCandidate(id, principal.getName()));
     }
 
     @GetMapping("/upcoming/all")

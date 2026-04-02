@@ -12,9 +12,9 @@ import PrivateRoute from "./PrivateRoute";
 const ExaminerRoutes = () => {
   return (
     <Routes>
-      <Route path="/examiner" element={<Navigate to="/examiner/dashboard" replace />} />
+      <Route path="" element={<Navigate to="dashboard" replace />} />
       <Route
-        path="/examiner/dashboard"
+        path="dashboard"
         element={
           <PrivateRoute role="examiner">
             <MainDashboardPageWrapper />
@@ -22,7 +22,7 @@ const ExaminerRoutes = () => {
         }
       />
       <Route
-        path="/examiner/create"
+        path="create"
         element={
           <PrivateRoute role="examiner">
             <ExaminerCreateQuizPageWrapper />
@@ -30,7 +30,7 @@ const ExaminerRoutes = () => {
         }
       />
       <Route
-        path="/examiner/results"
+        path="results"
         element={
           <PrivateRoute role="examiner">
             <ExaminerResultsPageWrapper />
@@ -38,7 +38,7 @@ const ExaminerRoutes = () => {
         }
       />
       <Route
-        path="/examiner/progress"
+        path="progress"
         element={
           <PrivateRoute role="examiner">
             <ExaminerProgressPageWrapper />
@@ -46,7 +46,7 @@ const ExaminerRoutes = () => {
         }
       />
       <Route
-        path="/examiner/profile"
+        path="profile"
         element={
           <PrivateRoute role="examiner">
             <ExaminerProfilePage />
@@ -54,7 +54,7 @@ const ExaminerRoutes = () => {
         }
       />
       <Route
-        path="/examiner/question-bank"
+        path="question-bank"
         element={
           <PrivateRoute role="examiner">
             <QuestionBankPage />
@@ -62,7 +62,7 @@ const ExaminerRoutes = () => {
         }
       />
       <Route
-        path="/examiner/import-questions"
+        path="import-questions"
         element={
           <PrivateRoute role="examiner">
             <ImportQuestionsPage />
@@ -70,7 +70,7 @@ const ExaminerRoutes = () => {
         }
       />
       <Route
-        path="/examiner/quiz-builder"
+        path="quiz-builder"
         element={
           <PrivateRoute role="examiner">
             <QuizBuilderPage />

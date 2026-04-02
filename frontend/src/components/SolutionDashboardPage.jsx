@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getAttemptDetail, getMyAttempts, downloadAttemptPdf } from "../api/quizApi";
+import { getAttemptDetail, getMyAttempts, downloadAttemptPdf, getQuizById } from "../api/quizApi";
 const C = {
   navy: "#1a3a6b", blue: "#2563eb", orange: "#f97316",
   bg: "#f5f8ff", card: "#ffffff", altBg: "#eaf0fb",
@@ -66,6 +66,32 @@ export default function SolutionDashboardPage() {
   const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [quiz, setQuiz] = useState(null); // Store quiz data for end time validation
+  const [quizEnded, setQuizEnded] = useState(true); // Track if quiz has ended
+
+  // Check if quiz has ended when detail is loaded
+  useEffect(() => {
+    if (!detail || !detail.quizId) return;
+
+    getQuizById(detail.quizId)
+      .then(q => {
+        setQuiz(q);
+        const now = new Date();
+        const scheduled = new Date(q.scheduledDateTime);
+
+        // Determine end time based on scheduling mode
+        let endTime;
+        if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+          endTime = new Date(q.windowEndDateTime);
+        } else {
+          endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+        }
+
+        // Quiz has ended if current time >= end time
+        setQuizEnded(now >= endTime);
+      })
+      .catch(e => console.warn("Could not validate quiz end time:", e));
+  }, [detail]);
 
   // If no attemptId in state, load the list of attempts for picking
   useEffect(() => {
@@ -149,6 +175,41 @@ export default function SolutionDashboardPage() {
   if (loading) return <div style={{ padding:40, textAlign:"center", color:C.muted }}>Loading solutions…</div>;
   if (error)   return <div style={{ padding:40, textAlign:"center", color:"#dc2626" }}>Error: {error}</div>;
   if (!detail) return null;
+
+  // If quiz hasn't ended yet, show message
+  if (quiz && !quizEnded) {
+    const scheduled = new Date(quiz.scheduledDateTime);
+    let endTime;
+    if (quiz.schedulingMode === "WINDOW" && quiz.windowEndDateTime) {
+      endTime = new Date(quiz.windowEndDateTime);
+    } else {
+      endTime = new Date(scheduled.getTime() + quiz.durationMinutes * 60 * 1000);
+    }
+    const timeRemaining = Math.ceil((endTime - new Date()) / 60000);
+    
+    return (
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"400px", fontFamily:C.font }}>
+        <div style={{ background:C.card, borderRadius:20, border:`1.5px solid ${C.border}`, padding:"48px 40px", maxWidth:500, textAlign:"center", boxShadow:"0 4px 16px #1a3a6b12" }}>
+          <div style={{ width:60, height:60, borderRadius:"50%", background:"#fef3c7", margin:"0 auto 20px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28 }}>🔒</div>
+          <h2 style={{ fontSize:20, fontWeight:900, color:C.navy, margin:"0 0 8px" }}>Solutions Locked</h2>
+          <p style={{ fontSize:13, color:C.body, lineHeight:1.6, margin:"0 0 20px" }}>
+            Solutions are available only after the quiz completely ends. The quiz is still ongoing.
+          </p>
+          {timeRemaining > 0 && (
+            <div style={{ padding:"12px 16px", borderRadius:12, background:C.altBg, border:`1px solid ${C.border}`, marginBottom:20 }}>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Quiz ends in approximately</div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.orange }}>{timeRemaining} minute{timeRemaining !== 1 ? 's' : ''}</div>
+            </div>
+          )}
+          <button 
+            onClick={() => navigate("/candidate/dashboard")}
+            style={{ padding:"12px 32px", borderRadius:12, background:C.blue, color:"#fff", border:"none", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:C.font }}>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const { quizTitle, subject, score, totalQuestions, percentage, submittedAt, questions } = detail;
   const pct = Math.round(percentage), pass = pct >= 60;

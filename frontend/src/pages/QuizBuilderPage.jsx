@@ -33,6 +33,9 @@ export default function QuizBuilderPage() {
     duration: 60,
     scheduledDateTime: "",
     subject: "",
+    allowMultipleAttempts: false,
+    schedulingMode: "FIXED_TIME",
+    windowEndDateTime: "",
   });
   const [subjects, setSubjects] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -97,7 +100,10 @@ export default function QuizBuilderPage() {
         title: quizForm.title,
         subject: quizForm.subject || "General",
         durationMinutes: parseInt(quizForm.duration),
+        schedulingMode: quizForm.schedulingMode,
         scheduledDateTime: quizForm.scheduledDateTime,
+        windowEndDateTime: quizForm.schedulingMode === "WINDOW" ? quizForm.windowEndDateTime : null,
+        allowMultipleAttempts: quizForm.allowMultipleAttempts,
         questions: selectedQuizQuestions.map(q => ({
           text: q.text,
           options: q.options,
@@ -115,7 +121,7 @@ export default function QuizBuilderPage() {
       setShowSuccessModal(true);
       
       // Reset form and selections
-      setQuizForm({ title: "", description: "", duration: 60, scheduledDateTime: "", subject: "" });
+      setQuizForm({ title: "", description: "", duration: 60, scheduledDateTime: "", subject: "", allowMultipleAttempts: false, schedulingMode: "FIXED_TIME", windowEndDateTime: "" });
       setSelectedQuestions(new Set());
     } catch (err) {
       console.error("Error creating quiz:", err);
@@ -191,6 +197,68 @@ export default function QuizBuilderPage() {
               <textarea placeholder="Optional instructions or context…" value={quizForm.description} onChange={e => setQuizForm({...quizForm, description: e.target.value})}
                 style={{ width:"100%", padding:"10px 12px", borderRadius:8, border:`1.5px solid ${C.border}`, fontFamily:C.font, minHeight:70, resize:"none", fontSize:13, boxSizing:"border-box" }}/>
             </div>
+
+            <div style={{ marginBottom:20, padding:14, borderRadius:10, background:quizForm.allowMultipleAttempts ? `${C.green}10` : `${C.orange}10`, border:`1.5px solid ${quizForm.allowMultipleAttempts ? `${C.green}40` : `${C.orange}40`}` }}>
+              <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", margin:0 }}>
+                <input 
+                  type="checkbox" 
+                  checked={quizForm.allowMultipleAttempts} 
+                  onChange={e => setQuizForm({...quizForm, allowMultipleAttempts: e.target.checked})}
+                  style={{ width:18, height:18, cursor:"pointer", accentColor:quizForm.allowMultipleAttempts ? C.green : C.orange }}
+                />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:C.navy }}>Allow Multiple Attempts</div>
+                  <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
+                    {quizForm.allowMultipleAttempts 
+                      ? "✓ Students can retake this quiz multiple times"
+                      : "✗ Students get only one attempt"}
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <div style={{ marginBottom:20 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.5px" }}>Scheduling Mode *</label>
+              <div style={{ display:"flex", gap:12 }}>
+                <label style={{ flex:1, display:"flex", alignItems:"center", gap:10, padding:12, borderRadius:8, border:`1.5px solid ${quizForm.schedulingMode === "FIXED_TIME" ? C.blue : C.border}`, background: quizForm.schedulingMode === "FIXED_TIME" ? `${C.blue}10` : "transparent", cursor:"pointer" }}>
+                  <input 
+                    type="radio" 
+                    name="schedulingMode" 
+                    value="FIXED_TIME" 
+                    checked={quizForm.schedulingMode === "FIXED_TIME"}
+                    onChange={e => setQuizForm({...quizForm, schedulingMode: e.target.value})}
+                    style={{ width:16, height:16, cursor:"pointer", accentColor:C.blue }}
+                  />
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.navy }}>Fixed Time</div>
+                    <div style={{ fontSize:10, color:C.muted }}>Global timer</div>
+                  </div>
+                </label>
+                <label style={{ flex:1, display:"flex", alignItems:"center", gap:10, padding:12, borderRadius:8, border:`1.5px solid ${quizForm.schedulingMode === "WINDOW" ? C.blue : C.border}`, background: quizForm.schedulingMode === "WINDOW" ? `${C.blue}10` : "transparent", cursor:"pointer" }}>
+                  <input 
+                    type="radio" 
+                    name="schedulingMode" 
+                    value="WINDOW" 
+                    checked={quizForm.schedulingMode === "WINDOW"}
+                    onChange={e => setQuizForm({...quizForm, schedulingMode: e.target.value})}
+                    style={{ width:16, height:16, cursor:"pointer", accentColor:C.blue }}
+                  />
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.navy }}>Time Window</div>
+                    <div style={{ fontSize:10, color:C.muted }}>Custom window</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {quizForm.schedulingMode === "WINDOW" && (
+              <div style={{ marginBottom:20 }}>
+                <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.5px" }}>Window End Time *</label>
+                <input type="datetime-local" value={quizForm.windowEndDateTime} onChange={e => setQuizForm({...quizForm, windowEndDateTime: e.target.value})}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:8, border:`1.5px solid ${C.border}`, fontFamily:C.font, fontSize:13, boxSizing:"border-box" }}/>
+                <div style={{ fontSize:10, color:C.muted, marginTop:6 }}>Quiz must end before this time. Duration cannot exceed window length.</div>
+              </div>
+            )}
 
             <div style={{ background:C.altBg, borderRadius:8, padding:12, marginBottom:16, fontSize:12, color:C.body }}>
               <div style={{ fontWeight:700, marginBottom:4, display:"flex", alignItems:"center", gap:6 }}>

@@ -1,7 +1,8 @@
 // QuizPage.jsx — Full-screen quiz taking experience
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { getQuizById, submitAttempt } from "../api/quizApi";
+import { getQuizById, submitAttempt, getCandidateQuizData, getQuizStatus } from "../api/quizApi";
+import { notificationStore } from "../utils/notificationStore";
 
 const C = {
   navy:"#1a3a6b", blue:"#2563eb", orange:"#f97316", green:"#16a34a", red:"#dc2626",
@@ -26,7 +27,13 @@ export default function QuizPage() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [autoSubmitting, setAutoSubmitting] = useState(false); // Track if quiz is auto-submitting
   const [result,   setResult]   = useState(null);  // AttemptResponse after submit
+  const [candidateQuizData, setCandidateQuizData] = useState(null); // Quiz config + attempt info
+  const [quizStatus, setQuizStatus] = useState(null); // Backend quiz status (timer, late join info)
+  const [isLateJoin, setIsLateJoin] = useState(false); // Flag for late join
+  const [minutesLate, setMinutesLate] = useState(0); // How many minutes late
+  const [effectiveDuration, setEffectiveDuration] = useState(null); // Effective duration for late join
   const [tabSwitchCount, setTabSwitchCount] = useState(() => {
     // Load tab switch count from sessionStorage on mount
     const stored = sessionStorage.getItem(`quiz_${id}_tabSwitches`);
@@ -39,11 +46,29 @@ export default function QuizPage() {
   const pageLeftRef = useRef(false);
 
   useEffect(() => {
-    getQuizById(id)
-      .then(data => {
+    Promise.all([getQuizById(id), getCandidateQuizData(id), getQuizStatus(id)])
+      .then(([data, candidateData, statusData]) => {
         setQuiz(data);
+        setCandidateQuizData(candidateData);
+        setQuizStatus(statusData);
+        
+        // Use backend's remaining minutes for accurate timer (for live quizzes)
+        if (statusData?.remainingMinutes !== undefined) {
+          // Quiz is already live, use backend's calculated remaining time
+          setTimeLeft(Math.max(0, statusData.remainingMinutes * 60));
+        } else {
+          // Quiz hasn't started yet, use full duration
+          setTimeLeft(data.durationMinutes * 60);
+        }
+        
+        // Set up late join warning if applicable
+        if (statusData?.isLateJoin) {
+          setIsLateJoin(true);
+          setMinutesLate(statusData.minutesLate || 0);
+          setEffectiveDuration(statusData.effectiveDurationMinutes || data.durationMinutes);
+        }
+        
         setAnswers(new Array(data.questions.length).fill(null));
-        setTimeLeft(data.durationMinutes * 60);
         setLoading(false);
         
         // Request fullscreen mode on quiz load
@@ -64,26 +89,53 @@ export default function QuizPage() {
   const handleSubmit = useCallback(async (forced = false) => {
     if (submitting) return;
     setSubmitting(true);
+    if (forced) setAutoSubmitting(true); // Mark as auto-submit
     try {
       // Send answers as-is (null for unanswered, null is ignored by backend scorer)
       const res = await submitAttempt(Number(id), answers);
       setResult(res);
+      setAutoSubmitting(false);
+      
+      // Notify candidate when quiz auto-submits (quiz ends)
+      if (forced && quiz) {
+        notificationStore.notifyResultsAvailable(quiz.title);
+      }
     } catch (e) {
       alert(e.message || "Submission failed. Please try again.");
       setSubmitting(false);
+      setAutoSubmitting(false);
     }
-  }, [id, answers, submitting]);
+  }, [id, answers, submitting, quiz]);
 
   // Timer countdown
   useEffect(() => {
     if (timeLeft === null || result) return;
     if (timeLeft <= 0) {
+      // Auto-submit when timer reaches 0
       handleSubmit(true);
       return;
     }
     const t = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(t);
   }, [timeLeft, result, handleSubmit]);
+
+  // Auto-submit when window closes (for WINDOW mode)
+  useEffect(() => {
+    if (!quiz || result || quiz.schedulingMode !== "WINDOW") return;
+    
+    // Check if window has closed periodically
+    const checkWindowClosed = setInterval(() => {
+      if (quizStatus?.windowEndDateTime) {
+        const now = new Date();
+        const windowEnd = new Date(quizStatus.windowEndDateTime);
+        if (now >= windowEnd && !result) {
+          handleSubmit(true);
+        }
+      }
+    }, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(checkWindowClosed);
+  }, [quiz, quizStatus, result, handleSubmit]);
 
   // Save tab switch count to sessionStorage when it changes
   useEffect(() => {
@@ -307,10 +359,40 @@ export default function QuizPage() {
 
           {/* Actions */}
           <div style={{ padding:"24px", display:"flex", flexDirection:"column", gap:12 }}>
+            {/* Show attempt info if available */}
+            {candidateQuizData && (
+              <div style={{ padding:"14px 16px", borderRadius:12, background:C.altBg, border:`1.5px solid ${C.border}` }}>
+                <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>📊 Attempt Information</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:10, color:C.muted }}>Attempts Made</div>
+                    <div style={{ fontSize:16, fontWeight:900, color:C.blue, marginTop:2 }}>{candidateQuizData.attemptCount}</div>
+                  </div>
+                  {candidateQuizData.attemptCount > 1 && (
+                    <div>
+                      <div style={{ fontSize:10, color:C.muted }}>Best Score</div>
+                      <div style={{ fontSize:16, fontWeight:900, color:C.green, marginTop:2 }}>
+                        {Math.round((candidateQuizData.bestScore / candidateQuizData.totalQuestions) * 100)}%
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <button onClick={() => navigate("/candidate/solutions", { state:{ attemptId: result.id } })}
               style={{ padding:"12px", borderRadius:12, background:C.blue, color:"#fff", border:"none", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:C.font }}>
               View Solutions
             </button>
+
+            {/* Show Retake button if multiple attempts allowed */}
+            {candidateQuizData && candidateQuizData.allowMultipleAttempts && (
+              <button onClick={() => window.location.reload()}
+                style={{ padding:"12px", borderRadius:12, background:C.orange, color:"#fff", border:"none", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:C.font }}>
+                🔄 Retake Quiz
+              </button>
+            )}
+
             <button onClick={() => navigate("/candidate/dashboard")}
               style={{ padding:"12px", borderRadius:12, background:C.altBg, color:C.navy, border:`1.5px solid ${C.border}`, fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:C.font }}>
               Back to Dashboard
@@ -340,6 +422,30 @@ export default function QuizPage() {
             style={{ marginTop:20, padding:"10px 24px", borderRadius:10, background:C.navy, color:"#fff", border:"none", fontWeight:700, cursor:"pointer", fontFamily:C.font }}>
             Go Back
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auto-submitting message
+  if (autoSubmitting && !result) {
+    return (
+      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, fontFamily:C.font }}>
+        <div style={{ background:C.card, borderRadius:20, padding:"48px 40px", textAlign:"center", maxWidth:400 }}>
+          <div style={{ width:60, height:60, borderRadius:"50%", background:C.orange, margin:"0 auto 24px", display:"flex", alignItems:"center", justifyContent:"center", animation:"spin 1s linear infinite" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" style={{ width:32, height:32 }}>
+              <path d="M12 2v6m0 4v6M2 12h6m4 0h6M4.22 4.22l4.24 4.24m8.08 0l4.24-4.24M4.22 19.78l4.24-4.24m8.08 0l4.24 4.24"/>
+            </svg>
+          </div>
+          <div style={{ fontSize:18, fontWeight:900, color:C.navy, marginBottom:8 }}>Auto-Submitting Quiz</div>
+          <div style={{ fontSize:13, color:C.muted, lineHeight:1.6 }}>
+            Your time is up. Your answers are being submitted automatically.
+          </div>
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
         </div>
       </div>
     );
@@ -417,7 +523,24 @@ export default function QuizPage() {
         </div>
 
         {/* Main content area with navigator */}
-        <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+        <div style={{ display:"flex", flex:1, overflow:"hidden", flexDirection:"column" }}>
+          {/* Late Join Warning Banner */}
+          {isLateJoin && (
+            <div style={{ background:"#fffbeb", borderBottom:"1.5px solid #fcd34d", padding:"12px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, flex:1 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:18, height:18, color:"#d97706", flexShrink:0 }}>
+                  <path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/>
+                </svg>
+                <div style={{ fontSize:13, fontWeight:700, color:"#92400e" }}>
+                  <span style={{ fontWeight:900 }}>Late Join Detected</span>: You joined {minutesLate} minute{minutesLate !== 1 ? 's' : ''} late. 
+                  You have <span style={{ fontWeight:900, color:"#dc2626" }}>{effectiveDuration} minutes</span> available to complete this quiz.
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Navigator and Questions */}
+          <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
           {/* Navigator Sidebar */}
           {showNavigator && (
             <div style={{ width:240, background:C.card, borderRight:`1.5px solid ${C.border}`, overflow:"auto", padding:"16px", display:"flex", flexDirection:"column", gap:12, flexShrink:0, boxShadow:"2px 0 8px rgba(26, 58, 107, 0.06)" }}>
@@ -652,6 +775,7 @@ export default function QuizPage() {
             )}
           </div>
         )}
+          </div>
 
         {/* Submit button bar - sticky at bottom */}
         <div style={{ background:C.card, borderTop:`1.5px solid ${C.border}`, padding:"16px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 -4px 24px #1a3a6b10", flexShrink:0 }}>

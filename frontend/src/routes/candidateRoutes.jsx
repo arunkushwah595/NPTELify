@@ -10,29 +10,29 @@ import PrivateRoute from "./PrivateRoute";
 const CandidateRoutes = () => {
   return (
     <Routes>
-      <Route path="/candidate" element={<Navigate to="/candidate/dashboard" replace />} />
-      <Route path="/candidate/dashboard"
+      <Route path="" element={<Navigate to="dashboard" replace />} />
+      <Route path="dashboard"
         element={
           <PrivateRoute role="candidate">
             <StudentMainDashboardPageWrapper />
           </PrivateRoute>
         }
       />
-      <Route path="/candidate/results"
+      <Route path="results"
         element={
           <PrivateRoute role="candidate">
             <StudentResultsDashboardPageWrapper />
           </PrivateRoute>
         }
       />
-      <Route path="/candidate/progress"
+      <Route path="progress"
         element={
           <PrivateRoute role="candidate">
             <StudentProgressDashboardPageWrapper />
           </PrivateRoute>
         }
       />
-      <Route path="/candidate/solutions"
+      <Route path="solutions"
         element={
           <PrivateRoute role="candidate">
             <StudentSolutionsDashboardPageWrapper />
@@ -40,7 +40,7 @@ const CandidateRoutes = () => {
         }
       />
       <Route
-        path="/candidate/profile"
+        path="profile"
         element={
           <PrivateRoute role="candidate">
             <CandidateProfilePage />
@@ -48,7 +48,7 @@ const CandidateRoutes = () => {
         }
       />
       <Route
-        path="/candidate/quiz/:id"
+        path="quiz/:id"
         element={
           <PrivateRoute role="candidate">
             <QuizPage />

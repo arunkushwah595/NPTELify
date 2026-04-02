@@ -24,13 +24,16 @@ public class AttemptService {
     private final AttemptRepository attemptRepository;
     private final QuizRepository quizRepository;
     private final UserRepository userRepository;
+    private final QuizTimerService quizTimerService;
 
     public AttemptService(AttemptRepository attemptRepository,
                           QuizRepository quizRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          QuizTimerService quizTimerService) {
         this.attemptRepository = attemptRepository;
         this.quizRepository = quizRepository;
         this.userRepository = userRepository;
+        this.quizTimerService = quizTimerService;
     }
 
     @Transactional
@@ -40,23 +43,24 @@ public class AttemptService {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
 
-        // Check if quiz is live (scheduled and within time window)
         LocalDateTime now = LocalDateTime.now();
-        if (quiz.getScheduledDateTime() == null) {
-            throw new IllegalArgumentException("This quiz is not scheduled yet");
-        }
-        if (now.isBefore(quiz.getScheduledDateTime())) {
-            throw new IllegalArgumentException("This quiz has not started yet. It is scheduled for " + quiz.getScheduledDateTime());
-        }
-        LocalDateTime quizEndTime = quiz.getScheduledDateTime().plusMinutes(quiz.getDurationMinutes());
-        if (now.isAfter(quizEndTime)) {
-            throw new IllegalArgumentException("This quiz has ended. It was scheduled to end at " + quizEndTime);
+
+        // Validate that the quiz can be started using the timer service
+        if (!quizTimerService.canStartQuiz(quiz, now)) {
+            throw new IllegalArgumentException("This quiz is not available at this time");
         }
 
-        // Prevent duplicate attempts
-        attemptRepository.findByCandidateAndQuiz(candidate, quiz).ifPresent(a -> {
-            throw new IllegalArgumentException("You have already attempted this quiz");
-        });
+        // Check if quiz has ended
+        if (quizTimerService.hasQuizEnded(quiz, now)) {
+            throw new IllegalArgumentException("This quiz has ended");
+        }
+
+        // Prevent duplicate attempts ONLY if multiple attempts are NOT allowed
+        if (!quiz.isAllowMultipleAttempts()) {
+            attemptRepository.findByCandidateAndQuiz(candidate, quiz).ifPresent(a -> {
+                throw new IllegalArgumentException("You have already attempted this quiz");
+            });
+        }
 
         List<Question> questions = quiz.getQuestions();
         List<Integer> answers = request.getAnswers();
@@ -102,6 +106,41 @@ public class AttemptService {
         return attemptRepository.findByQuiz(quiz).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all attempts by a candidate for a specific quiz.
+     * Used to retrieve attempt history for a candidate.
+     */
+    @Transactional(readOnly = true)
+    public List<AttemptResponse> getCandidateAttemptsForQuiz(Long quizId, String candidateEmail) {
+        User candidate = userRepository.findByEmail(candidateEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Candidate not found"));
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+        
+        return attemptRepository.findAllByCandidateAndQuiz(candidate, quiz).stream()
+                .sorted((a, b) -> b.getSubmittedAt().compareTo(a.getSubmittedAt())) // Most recent first
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the best score for a candidate in a specific quiz.
+     * Returns 0 if no attempts exist.
+     */
+    @Transactional(readOnly = true)
+    public int getBestScore(Long quizId, String candidateEmail) {
+        User candidate = userRepository.findByEmail(candidateEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Candidate not found"));
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+        
+        List<Attempt> attempts = attemptRepository.findAllByCandidateAndQuiz(candidate, quiz);
+        return attempts.stream()
+                .mapToInt(Attempt::getScore)
+                .max()
+                .orElse(0);
     }
 
     private AttemptResponse toResponse(Attempt attempt) {

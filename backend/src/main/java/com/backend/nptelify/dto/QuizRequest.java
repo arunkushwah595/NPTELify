@@ -1,5 +1,6 @@
 package com.backend.nptelify.dto;
 
+import com.backend.nptelify.entity.SchedulingMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -20,7 +21,14 @@ public class QuizRequest {
     @Min(1)
     private int durationMinutes;
 
+    @NotNull
+    private SchedulingMode schedulingMode = SchedulingMode.FIXED_TIME;
+
+    // Start time - for FIXED_TIME: quiz start time; for WINDOW: window start time
     private LocalDateTime scheduledDateTime;
+
+    // For WINDOW mode only: the end of the time window
+    private LocalDateTime windowEndDateTime;
 
     private boolean allowMultipleAttempts = false;
 
@@ -38,8 +46,14 @@ public class QuizRequest {
     public int getDurationMinutes() { return durationMinutes; }
     public void setDurationMinutes(int durationMinutes) { this.durationMinutes = durationMinutes; }
 
+    public SchedulingMode getSchedulingMode() { return schedulingMode; }
+    public void setSchedulingMode(SchedulingMode schedulingMode) { this.schedulingMode = schedulingMode; }
+
     public LocalDateTime getScheduledDateTime() { return scheduledDateTime; }
     public void setScheduledDateTime(LocalDateTime scheduledDateTime) { this.scheduledDateTime = scheduledDateTime; }
+
+    public LocalDateTime getWindowEndDateTime() { return windowEndDateTime; }
+    public void setWindowEndDateTime(LocalDateTime windowEndDateTime) { this.windowEndDateTime = windowEndDateTime; }
 
     public boolean isAllowMultipleAttempts() { return allowMultipleAttempts; }
     public void setAllowMultipleAttempts(boolean allowMultipleAttempts) { this.allowMultipleAttempts = allowMultipleAttempts; }

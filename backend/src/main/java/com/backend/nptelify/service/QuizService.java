@@ -3,9 +3,12 @@ package com.backend.nptelify.service;
 import com.backend.nptelify.dto.ExaminerStatsResponse;
 import com.backend.nptelify.dto.QuizRequest;
 import com.backend.nptelify.dto.QuizResponse;
+import com.backend.nptelify.dto.CandidateQuizDataResponse;
+import com.backend.nptelify.dto.QuizStatusResponse;
 import com.backend.nptelify.entity.Attempt;
 import com.backend.nptelify.entity.Question;
 import com.backend.nptelify.entity.Quiz;
+import com.backend.nptelify.entity.SchedulingMode;
 import com.backend.nptelify.entity.User;
 import com.backend.nptelify.repository.AttemptRepository;
 import com.backend.nptelify.repository.QuizRepository;
@@ -14,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,15 +27,23 @@ public class QuizService {
     private final QuizRepository quizRepository;
     private final UserRepository userRepository;
     private final AttemptRepository attemptRepository;
+    private final QuizTimerService quizTimerService;
+    private final QuizSchedulingValidator quizSchedulingValidator;
 
-    public QuizService(QuizRepository quizRepository, UserRepository userRepository, AttemptRepository attemptRepository) {
+    public QuizService(QuizRepository quizRepository, UserRepository userRepository, AttemptRepository attemptRepository,
+                       QuizTimerService quizTimerService, QuizSchedulingValidator quizSchedulingValidator) {
         this.quizRepository = quizRepository;
         this.userRepository = userRepository;
         this.attemptRepository = attemptRepository;
+        this.quizTimerService = quizTimerService;
+        this.quizSchedulingValidator = quizSchedulingValidator;
     }
 
     @Transactional
     public QuizResponse createQuiz(QuizRequest request, String examinerEmail) {
+        // Validate the quiz request based on scheduling mode
+        quizSchedulingValidator.validateQuizRequest(request);
+
         User examiner = userRepository.findByEmail(examinerEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Examiner not found"));
 
@@ -39,7 +51,9 @@ public class QuizService {
         quiz.setTitle(request.getTitle());
         quiz.setSubject(request.getSubject());
         quiz.setDurationMinutes(request.getDurationMinutes());
+        quiz.setSchedulingMode(request.getSchedulingMode());
         quiz.setScheduledDateTime(request.getScheduledDateTime());
+        quiz.setWindowEndDateTime(request.getWindowEndDateTime());
         quiz.setAllowMultipleAttempts(request.isAllowMultipleAttempts());
         quiz.setExaminer(examiner);
 
@@ -134,13 +148,17 @@ public class QuizService {
         
         return new QuizResponse(
                 quiz.getId(), quiz.getTitle(), quiz.getSubject(),
-                quiz.getDurationMinutes(), quiz.getCreatedAt(), quiz.getScheduledDateTime(),
+                quiz.getDurationMinutes(), quiz.getCreatedAt(), 
+                quiz.getSchedulingMode(), quiz.getScheduledDateTime(), quiz.getWindowEndDateTime(),
                 quiz.getExaminer().getName(), questions, attemptCount, quiz.isAllowMultipleAttempts()
         );
     }
 
     @Transactional
     public QuizResponse updateQuiz(Long id, QuizRequest request, String examinerEmail) {
+        // Validate the quiz request based on scheduling mode
+        quizSchedulingValidator.validateQuizRequest(request);
+
         User examiner = userRepository.findByEmail(examinerEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Examiner not found"));
 
@@ -156,7 +174,9 @@ public class QuizService {
         quiz.setTitle(request.getTitle());
         quiz.setSubject(request.getSubject());
         quiz.setDurationMinutes(request.getDurationMinutes());
+        quiz.setSchedulingMode(request.getSchedulingMode());
         quiz.setScheduledDateTime(request.getScheduledDateTime());
+        quiz.setWindowEndDateTime(request.getWindowEndDateTime());
         quiz.setAllowMultipleAttempts(request.isAllowMultipleAttempts());
 
         // Clear old questions and add new ones
@@ -295,6 +315,135 @@ public class QuizService {
                 quizStats,
                 subjectStats,
                 studentStats
+        );
+    }
+
+    /**
+     * Get quiz status with timing information for a candidate.
+     * Returns backend-driven timer calculations to prevent client-side manipulation.
+     */
+    @Transactional(readOnly = true)
+    public QuizStatusResponse getQuizStatusForCandidate(Long quizId, String candidateEmail) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+
+        LocalDateTime currentTime = LocalDateTime.now();
+        long remainingMinutes = quizTimerService.getRemainingMinutes(quiz, currentTime);
+        boolean canStart = quizTimerService.canStartQuiz(quiz, currentTime);
+        boolean isLateJoin = quizTimerService.isLatJoin(quiz, currentTime);
+        long minutesLate = quizTimerService.getMinutesLate(quiz, currentTime);
+        long effectiveDuration = quizTimerService.getEffectiveDurationMinutes(quiz, currentTime);
+
+        QuizStatusResponse.QuizStatus status;
+        if (!canStart && remainingMinutes > 0) {
+            // Quiz hasn't started yet
+            status = QuizStatusResponse.QuizStatus.UPCOMING;
+        } else if (canStart && remainingMinutes > 0) {
+            // Quiz is currently live
+            status = QuizStatusResponse.QuizStatus.LIVE;
+        } else {
+            // Quiz has ended
+            status = QuizStatusResponse.QuizStatus.ENDED;
+        }
+
+        LocalDateTime endTime = null;
+        if (quiz.getSchedulingMode() == SchedulingMode.FIXED_TIME && quiz.getScheduledDateTime() != null) {
+            endTime = quiz.getScheduledDateTime().plusMinutes(quiz.getDurationMinutes());
+        } else if (quiz.getSchedulingMode() == SchedulingMode.WINDOW) {
+            endTime = quiz.getWindowEndDateTime();
+        }
+
+        String statusMessage = generateStatusMessage(quiz, status, isLateJoin, minutesLate, remainingMinutes, effectiveDuration);
+
+        return new QuizStatusResponse(
+                quiz.getId(),
+                currentTime,
+                quiz.getSchedulingMode(),
+                quiz.getScheduledDateTime(),
+                endTime,
+                remainingMinutes,
+                status,
+                isLateJoin,
+                minutesLate,
+                effectiveDuration,
+                statusMessage,
+                quiz.isAllowMultipleAttempts()
+        );
+    }
+
+    private String generateStatusMessage(Quiz quiz, QuizStatusResponse.QuizStatus status,
+                                         boolean isLateJoin, long minutesLate, long remainingMinutes,
+                                         long effectiveDuration) {
+        switch (status) {
+            case UPCOMING:
+                long minutesUntilStart = quiz.getSchedulingMode() == SchedulingMode.FIXED_TIME
+                        ? ChronoUnit.MINUTES.between(LocalDateTime.now(), quiz.getScheduledDateTime())
+                        : ChronoUnit.MINUTES.between(LocalDateTime.now(), quiz.getScheduledDateTime());
+                return String.format("Quiz starts in %d minutes", Math.max(0, minutesUntilStart));
+
+            case LIVE:
+                if (isLateJoin && quiz.getSchedulingMode() == SchedulingMode.FIXED_TIME) {
+                    return String.format("You joined %d minutes late. %d minutes remaining (%d min effective)", 
+                        minutesLate, remainingMinutes, effectiveDuration);
+                } else {
+                    return String.format("%d minutes remaining", remainingMinutes);
+                }
+
+            case ENDED:
+                return "Quiz has ended";
+
+            default:
+                return "";
+        }
+    }
+
+    /**
+     * Get quiz data with candidate-specific attempt information.
+     * Returns attempt count, best score, and other attempts info for the candidate.
+     */
+    @Transactional(readOnly = true)
+    public CandidateQuizDataResponse getCandidateQuizData(Long quizId, String candidateEmail) {
+        User candidate = userRepository.findByEmail(candidateEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Candidate not found"));
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+
+        List<CandidateQuizDataResponse.QuestionDto> questions = quiz.getQuestions().stream()
+                .map(q -> new CandidateQuizDataResponse.QuestionDto(
+                        q.getId(), q.getText(), new ArrayList<>(q.getOptions())))
+                .collect(Collectors.toList());
+
+        // Get all attempts by this candidate for this quiz
+        List<Attempt> candidateAttempts = attemptRepository.findAllByCandidateAndQuiz(candidate, quiz);
+
+        int attemptCount = candidateAttempts.size();
+        int bestScore = candidateAttempts.stream()
+                .mapToInt(Attempt::getScore)
+                .max()
+                .orElse(0);
+        
+        int totalQuestions = quiz.getQuestions().size();
+        
+        LocalDateTime lastAttemptAt = candidateAttempts.stream()
+                .map(Attempt::getSubmittedAt)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+
+        return new CandidateQuizDataResponse(
+                quiz.getId(),
+                quiz.getTitle(),
+                quiz.getSubject(),
+                quiz.getDurationMinutes(),
+                quiz.getSchedulingMode(),
+                quiz.getScheduledDateTime(),
+                quiz.getWindowEndDateTime(),
+                quiz.getExaminer().getName(),
+                questions,
+                quiz.isAllowMultipleAttempts(),
+                attemptCount,
+                bestScore,
+                totalQuestions,
+                lastAttemptAt
         );
     }
 }

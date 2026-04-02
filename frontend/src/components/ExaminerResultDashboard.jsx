@@ -172,6 +172,8 @@ export default function ExaminerResultDashboard() {
     }
   };
 
+
+
   const totalSubmitted = attempts.length;
   const avgPct = attempts.length > 0
     ? Math.round(attempts.reduce((a, at) => a + at.percentage, 0) / attempts.length)

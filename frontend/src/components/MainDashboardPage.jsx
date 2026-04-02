@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAllQuizzes, getMyAttempts } from "../api/quizApi";
+import { getAllQuizzes, getMyAttempts, getCandidateQuizData, getQuizStatus } from "../api/quizApi";
 import { useAuth } from "../context/AuthContext";
 import { notificationStore } from "../utils/notificationStore";
 
@@ -82,14 +82,40 @@ export default function MainDashboardPage() {
   const navigate   = useNavigate();
   const [quizzes,  setQuizzes]  = useState([]);
   const [attempts, setAttempts] = useState([]);
+  const [candidateQuizData, setCandidateQuizData] = useState({});  // { [quizId]: CandidateQuizDataResponse }
+  const [quizStatusData, setQuizStatusData] = useState({});  // { [quizId]: QuizStatusResponse }
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
 
   useEffect(() => {
     Promise.all([getAllQuizzes(), getMyAttempts()])
-      .then(([qs, ats]) => {
+      .then(async ([qs, ats]) => {
         setQuizzes(qs);
         setAttempts(ats);
+
+        // Fetch candidate-specific data for each quiz
+        const candidateDataMap = {};
+        const quizStatusMap = {};
+        try {
+          await Promise.all(
+            qs.map(async (q) => {
+              try {
+                const data = await getCandidateQuizData(q.id);
+                candidateDataMap[q.id] = data;
+                
+                // Fetch quiz status (for timer and latejoin info)
+                const status = await getQuizStatus(q.id);
+                quizStatusMap[q.id] = status;
+              } catch (e) {
+                console.warn(`Failed to fetch quiz data for quiz ${q.id}:`, e);
+              }
+            })
+          );
+        } catch (e) {
+          console.error("Error fetching quiz data:", e);
+        }
+        setCandidateQuizData(candidateDataMap);
+        setQuizStatusData(quizStatusMap);
         setLoading(false);
 
         // Check for quizzes starting soon and trigger notifications
@@ -115,6 +141,27 @@ export default function MainDashboardPage() {
         });
       })
       .catch(e => { setError(e.message); setLoading(false); });
+    
+    // Refresh quiz status every 30 seconds
+    const statusRefreshInterval = setInterval(() => {
+      getAllQuizzes().then(qs => {
+        const quizStatusMap = {};
+        Promise.all(
+          qs.map(async (q) => {
+            try {
+              const status = await getQuizStatus(q.id);
+              quizStatusMap[q.id] = status;
+            } catch (e) {
+              console.warn(`Failed to refresh status for quiz ${q.id}:`, e);
+            }
+          })
+        ).then(() => {
+          setQuizStatusData(prev => ({ ...prev, ...quizStatusMap }));
+        });
+      });
+    }, 30 * 1000);
+    
+    return () => clearInterval(statusRefreshInterval);
   }, []);
 
   const attemptedIds = new Set(attempts.map(a => a.quizId));
@@ -124,7 +171,15 @@ export default function MainDashboardPage() {
   const liveQuizzes = quizzes.filter(q => {
     if (!q.scheduledDateTime) return false;
     const scheduled = new Date(q.scheduledDateTime);
-    const endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    
+    // For WINDOW mode, use windowEndDateTime; for FIXED_TIME, use scheduled + duration
+    let endTime;
+    if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+      endTime = new Date(q.windowEndDateTime);
+    } else {
+      endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    }
+    
     return scheduled <= now && now < endTime;
   });
   
@@ -137,13 +192,44 @@ export default function MainDashboardPage() {
   const pastQuizzes = quizzes.filter(q => {
     if (!q.scheduledDateTime) return false;
     const scheduled = new Date(q.scheduledDateTime);
-    const endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    
+    // For WINDOW mode, use windowEndDateTime; for FIXED_TIME, use scheduled + duration
+    let endTime;
+    if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+      endTime = new Date(q.windowEndDateTime);
+    } else {
+      endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    }
+    
     return now >= endTime;
   });
   
-  // Available = live quizzes not yet attempted
-  const available = liveQuizzes.filter(q => !attemptedIds.has(q.id));
-  const completed = quizzes.filter(q => attemptedIds.has(q.id));
+  // Count available live quizzes (those you can still take)
+  const availableLive = liveQuizzes.filter(q => {
+    const data = candidateQuizData[q.id];
+    if (!data) return true; // If no data yet, consider available
+    // If multiple attempts allowed OR not attempted yet, it's available
+    return data.allowMultipleAttempts || !data.hasAttempted;
+  });
+
+  // Only show in Completed if quiz window/time has actually ended
+  const completed = quizzes.filter(q => {
+    if (!attemptedIds.has(q.id)) return false; // Must have attempted
+    
+    if (!q.scheduledDateTime) return false;
+    const scheduled = new Date(q.scheduledDateTime);
+    const now = new Date();
+    
+    // For WINDOW mode, check if window has closed
+    if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+      const windowEnd = new Date(q.windowEndDateTime);
+      return now >= windowEnd;
+    }
+    
+    // For FIXED_TIME mode, check if duration has passed
+    const endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    return now >= endTime;
+  });
 
   const totalPassed  = attempts.filter(a => a.percentage >= 60).length;
   const avgScore     = attempts.length > 0
@@ -159,7 +245,7 @@ export default function MainDashboardPage() {
         <div style={{ position:"relative" }}>
           <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:4, display:"flex", alignItems:"center", gap:8 }}>Hey {user?.name || "Candidate"}! <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" style={{ width:24, height:24 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg></div>
           <div style={{ fontSize:14, color:"#a8c0e0" }}>
-            You have <span style={{ color:C.orange, fontWeight:700 }}>{available.length} quiz{available.length !== 1 ? "zes" : ""} available to attempt right now</span> (live quizzes only).
+            You have <span style={{ color:C.orange, fontWeight:700 }}>{availableLive.length} quiz{availableLive.length !== 1 ? "zes" : ""} available to attempt right now</span> (live quizzes only). <span style={{ color:"#fff" }}>{liveQuizzes.length} live in total.</span>
           </div>
         </div>
       </div>
@@ -169,7 +255,7 @@ export default function MainDashboardPage() {
         {[
           { icon:"quizzes", label:"Total Quizzes",  value:quizzes.length,        color:C.blue },
           { icon:"completed", label:"Completed",      value:completed.length,      color:"#16a34a" },
-          { icon:"live", label:"Live Now",      value:available.length,      color:"#dc2626" },
+          { icon:"live", label:"Live Now",      value:liveQuizzes.length,      color:"#dc2626" },
           { icon:"upcoming", label:"Upcoming",       value:upcomingQuizzes.length, color:C.orange },
         ].map(s => (
           <div key={s.label} style={{ background:C.card, borderRadius:16, padding:"16px 20px", border:`1.5px solid ${C.border}`, display:"flex", alignItems:"center", gap:14, flex:1, minWidth:0 }}>
@@ -196,31 +282,82 @@ export default function MainDashboardPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" style={{ width:16, height:16 }}><circle cx="12" cy="12" r="10"/></svg>
               Live Now
             </div>
-            {available.length === 0 ? (
-              <div style={{ fontSize:13, color:C.muted, padding:"12px 0" }}>No live quizzes available right now.</div>
+            {liveQuizzes.length === 0 ? (
+              <div style={{ fontSize:13, color:C.muted, padding:"12px 0" }}>No live quizzes running right now.</div>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
-                {available.map(q => {
+                {liveQuizzes.map(q => {
+                  const data = candidateQuizData[q.id] || { attemptCount: 0, bestScore: 0, hasAttempted: false, totalQuestions: q.questions?.length || 0, allowMultipleAttempts: q.allowMultipleAttempts };
                   const qDate = new Date(q.scheduledDateTime);
                   const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
                   const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+                  
+                  // Get backend status info
+                  const statusInfo = quizStatusData[q.id];
+                  const remainingMinutes = statusInfo?.remainingMinutes ?? q.durationMinutes;
+                  const isLateJoin = statusInfo?.isLateJoin || false;
+                  const minutesLate = statusInfo?.minutesLate || 0;
+                  const effectiveDurationMinutes = statusInfo?.effectiveDurationMinutes || q.durationMinutes;
+                  
+                  // Determine button state and text
+                  let buttonText = "Start Quiz";
+                  let buttonDisabled = false;
+                  let buttonColor = C.blue;
+                  let buttonTextColor = "#fff";
+                  
+                  if (data.hasAttempted && !data.allowMultipleAttempts) {
+                    buttonText = "✓ Finished";
+                    buttonDisabled = true;
+                    buttonColor = C.green;
+                    buttonTextColor = "#fff";
+                  } else if (data.hasAttempted && data.allowMultipleAttempts) {
+                    buttonText = "Retake Quiz";
+                    buttonDisabled = false;
+                  }
+                  
+                  const bestPercentage = data.totalQuestions > 0 ? Math.round((data.bestScore / data.totalQuestions) * 100) : 0;
+
                   return (
-                  <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${C.border}`, background:C.bg }}>
+                  <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${isLateJoin ? "#f59e0b" : C.border}`, background:isLateJoin ? "#fffbeb" : C.bg }}>
                     <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6 }}>
                       <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35 }}>{q.title}</div>
-                      <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, background:"#fff3ee", color:C.orange, whiteSpace:"nowrap", flexShrink:0 }}>{q.durationMinutes}m</span>
+                      <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, background:"#fff3ee", color:C.orange, whiteSpace:"nowrap", flexShrink:0 }}>{remainingMinutes}m</span>
                     </div>
+                    {isLateJoin && (
+                      <div style={{ fontSize:10, fontWeight:700, color:"#d97706", background:"#fef3c7", padding:"6px 8px", borderRadius:6, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14, flexShrink:0 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg>
+                        <span>Late join: {minutesLate} min late • {effectiveDurationMinutes} min available</span>
+                      </div>
+                    )}
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
                       <Badge subject={q.subject} />
-                      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                      {data.hasAttempted && (
+                        <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:C.muted }}>
+                          <span style={{ fontSize:9 }}>Results & scores visible after quiz ends</span>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8, paddingBottom:8, borderBottom:`1px solid ${isLateJoin ? "#fcd34d" : C.border}` }}>
+                      <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
                         <span style={{ fontSize:10, fontWeight:600, color:C.blue }}>{dateStr}</span>
                         <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {timeStr}</span>
                       </div>
+                      <span style={{ padding:"4px 10px", borderRadius:6, fontSize:10, fontWeight:800, background:"#dc262620", color:"#dc2626", textTransform:"uppercase", letterSpacing:"0.5px" }}>● LIVE</span>
                     </div>
                     <button onClick={() => navigate(`/candidate/quiz/${q.id}`)}
-                      style={{ padding:"6px 16px", borderRadius:10, background:C.blue, color:"#fff", border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:C.font, width:"100%", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                      Start Quiz
+                      disabled={buttonDisabled}
+                      style={{ padding:"8px 16px", borderRadius:10, background:buttonDisabled && buttonColor === C.green ? `${C.green} !important` : buttonDisabled ? "#d1d5db" : buttonColor, color:buttonDisabled && buttonColor === C.green ? `#fff !important` : buttonDisabled ? "#6b7280" : buttonTextColor, border:buttonDisabled && buttonColor === C.green ? `2px solid ${C.green}` : "none", fontSize:13, fontWeight:700, cursor:buttonDisabled ? "not-allowed" : "pointer", fontFamily:C.font, width:"100%", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8, minHeight:"36px", WebkitAppearance:"none", MozAppearance:"none" }}>
+                      {buttonDisabled && buttonColor === C.green ? (
+                        <>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" style={{ width:16, height:16 }}><path d="M5 13l4 4L19 7"/></svg>
+                          <span>{buttonText}</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                          <span>{buttonText}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                   );
@@ -281,15 +418,17 @@ export default function MainDashboardPage() {
               <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
                 {completed.map(q => {
                   const att  = attempts.find(a => a.quizId === q.id);
+                  const data = candidateQuizData[q.id];
                   const pct  = att?.percentage ?? 0;
                   const pass = pct >= 60;
                   const qDate = new Date(q.scheduledDateTime);
                   const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
                   const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+                  
                   return (
                     <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${C.border}`, background:C.bg }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35 }}>{q.title}</div>
+                      <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6, alignItems:"center" }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35, flex:1 }}>{q.title}</div>
                         <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, whiteSpace:"nowrap", flexShrink:0, background:pass?"#f0fdf4":"#fef2f2", color:pass?"#16a34a":"#dc2626", display:"flex", alignItems:"center", gap:4 }}>{pass ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14, height:14 }}><path d="M5 13l4 4L19 7"/></svg> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14, height:14 }}><path d="M6 18L18 6M6 6l12 12"/></svg>} {pass ? "Pass" : "Fail"}</span>
                       </div>
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
@@ -300,12 +439,17 @@ export default function MainDashboardPage() {
                       </div>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
                         <Badge subject={q.subject} />
-                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                        {data && data.attemptCount > 1 && (
+                          <span style={{ fontSize:10, fontWeight:700, color:C.orange, background:"#fff3ee", padding:"2px 8px", borderRadius:6 }}>
+                            {data.attemptCount} attempts
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>
+                        <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
                           <span style={{ fontSize:10, fontWeight:600, color:C.blue }}>{dateStr}</span>
                           <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {timeStr}</span>
                         </div>
-                      </div>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                         <span style={{ fontSize:11, fontWeight:700, color:pass?"#16a34a":"#dc2626" }}>{pct.toFixed(1)}%</span>
                       </div>
                       <button onClick={() => navigate(`/candidate/results?quizId=${q.id}`)}

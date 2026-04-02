@@ -76,6 +76,10 @@ export const getMyPastQuizzes = () => request("/api/quizzes/past/mine");
 
 export const getExaminerStats = () => request("/api/quizzes/stats/mine");
 
+export const getCandidateQuizData = (id) => request(`/api/quizzes/${id}/candidate-data`);
+
+export const getQuizStatus = (id) => request(`/api/quizzes/${id}/status`);
+
 export const copyQuiz = (id) => request(`/api/quizzes/${id}`);
 
 // ── Attempt APIs ───────────────────────────────────────────
@@ -151,3 +155,7 @@ export const downloadQuizReportPdf = async (quizId) => {
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
 };
+
+// Declare/Publish results for a quiz (notifies all candidates)
+export const declareResults = (quizId) =>
+  request(`/api/quizzes/${quizId}/declare-results`, { method: "POST", body: JSON.stringify({}) });

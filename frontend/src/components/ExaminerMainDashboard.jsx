@@ -141,6 +141,10 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
     navigate(`/examiner/results?quizId=${quiz.id}`);
   };
   
+  const handleLiveResults = () => {
+    navigate(`/examiner/results?quizId=${quiz.id}`);
+  };
+  
 
 
   const handleCopyQuiz = async () => {
@@ -181,7 +185,7 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
         <div style={{ display:"flex",gap:8,justifyContent:"flex-end" }}>
           {quizType === "upcoming" && (
             <>
-              <button onClick={() => onEdit(quiz.id)} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.blue,background:"transparent",color:C.blue,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:6 }}>
+              <button onClick={handleEdit} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.blue,background:"transparent",color:C.blue,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:6 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M17 3a2.828 2.828 0 115.656 0L5 21H3v-2L17 3z"/></svg>
                 <span>Edit</span>
               </button>
@@ -213,7 +217,10 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
             </>
           )}
           {quizType === "live" && (
-            <div style={{ fontSize:12,color:C.muted,fontStyle:"italic" }}>Quiz in progress</div>
+            <button onClick={handleLiveResults} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.red,background:"transparent",color:C.red,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:6 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M3 3v18h18M3 18l4-5 4 3 5-7 5 3"/></svg>
+              <span>Live Results</span>
+            </button>
           )}
         </div>
       </div>
@@ -299,19 +306,29 @@ export default function ExaminerMainDashboard() {
 
   const totalQuestions = quizzes.reduce((a, q) => a + (q.questions?.length || 0), 0);
   
-  // Categorize quizzes by scheduledDateTime and duration
+  // Categorize quizzes by scheduledDateTime and duration (with WINDOW mode support)
   const now = new Date();
   const past = quizzes.filter(q => {
     if (!q.scheduledDateTime) return false;
     const scheduled = new Date(q.scheduledDateTime);
-    const endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    let endTime;
+    if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+      endTime = new Date(q.windowEndDateTime);
+    } else {
+      endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    }
     return now >= endTime; // Quiz has ended
   });
   
   const live = quizzes.filter(q => {
     if (!q.scheduledDateTime) return false;
     const scheduled = new Date(q.scheduledDateTime);
-    const endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    let endTime;
+    if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+      endTime = new Date(q.windowEndDateTime);
+    } else {
+      endTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+    }
     return scheduled <= now && now < endTime; // Quiz is currently active
   });
   
@@ -344,6 +361,7 @@ export default function ExaminerMainDashboard() {
         <StatCardSvg icon="totalQuizzes" label="Total Quizzes Created"  value={quizzes.length} color={C.blue} />
         <StatCardSvg icon="totalQuestions" label="Total Questions"        value={totalQuestions}  color={C.purple} />
         <StatCardSvg icon="upcoming" label="Upcoming Quizzes"       value={upcoming.length}  color={C.green} />
+        <StatCardSvg icon="upcoming" label="Live Quizzes"           value={live.length}      color={C.red} />
         <StatCardSvg icon="past" label="Past Quizzes"           value={past.length}     color={C.orange} />
       </div>
 

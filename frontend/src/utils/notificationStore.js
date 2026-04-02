@@ -220,10 +220,10 @@ export const notificationStore = {
   notifyResultsAvailable: (quizTitle) => {
     notificationStore.add({
       type: "results_available",
-      title: "Results Available",
-      message: `Results for ${quizTitle} are now available!`,
-      icon: "📊",
-      color: "#2563eb",
+      title: "Quiz Ended",
+      message: `Now you can see the results or solutions of ${quizTitle}`,
+      icon: "✅",
+      color: "#16a34a",
     });
   },
 

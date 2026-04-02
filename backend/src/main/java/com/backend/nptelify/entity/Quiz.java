@@ -25,8 +25,20 @@ public class Quiz {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    // Scheduling Mode: FIXED_TIME or WINDOW
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = true)
+    private SchedulingMode schedulingMode = SchedulingMode.FIXED_TIME;
+
+    // For FIXED_TIME mode: the global start time
+    // For WINDOW mode: the window start time
     @Column
     private LocalDateTime scheduledDateTime;
+
+    // For WINDOW mode only: the window end time
+    // For FIXED_TIME mode: this should be null
+    @Column
+    private LocalDateTime windowEndDateTime;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "examiner_id", nullable = false)
@@ -59,8 +71,14 @@ public class Quiz {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
+    public SchedulingMode getSchedulingMode() { return schedulingMode; }
+    public void setSchedulingMode(SchedulingMode schedulingMode) { this.schedulingMode = schedulingMode; }
+
     public LocalDateTime getScheduledDateTime() { return scheduledDateTime; }
     public void setScheduledDateTime(LocalDateTime scheduledDateTime) { this.scheduledDateTime = scheduledDateTime; }
+
+    public LocalDateTime getWindowEndDateTime() { return windowEndDateTime; }
+    public void setWindowEndDateTime(LocalDateTime windowEndDateTime) { this.windowEndDateTime = windowEndDateTime; }
 
     public User getExaminer() { return examiner; }
     public void setExaminer(User examiner) { this.examiner = examiner; }

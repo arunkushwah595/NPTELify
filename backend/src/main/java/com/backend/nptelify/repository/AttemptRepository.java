@@ -12,4 +12,5 @@ public interface AttemptRepository extends JpaRepository<Attempt, Long> {
     List<Attempt> findByCandidate(User candidate);
     List<Attempt> findByQuiz(Quiz quiz);
     Optional<Attempt> findByCandidateAndQuiz(User candidate, Quiz quiz);
+    List<Attempt> findAllByCandidateAndQuiz(User candidate, Quiz quiz);
 }

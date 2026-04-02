@@ -247,7 +247,7 @@ export default function ExaminerCreateQuizDashboard() {
   const editId = searchParams.get("editId");
   const copyData = searchParams.get("copyData");
   
-  const [meta, setMeta]           = useState({ title:"", subject:"", description:"", date:"", time:"", duration:"30", totalMarks:"" });
+  const [meta, setMeta]           = useState({ title:"", subject:"", description:"", date:"", time:"", duration:"30", totalMarks:"", allowMultipleAttempts: false, schedulingMode: "FIXED_TIME", windowEndDate: "", windowEndTime: "" });
   const [questions, setQuestions] = useState([defaultQuestion()]);
   const [submitted, setSubmitted] = useState(false);
   const [hov, setHov]             = useState(null);
@@ -283,7 +283,8 @@ export default function ExaminerCreateQuizDashboard() {
           date: "",
           time: "",
           duration: decodedData.durationMinutes ? decodedData.durationMinutes.toString() : "30",
-          totalMarks: ""
+          totalMarks: "",
+          allowMultipleAttempts: decodedData.allowMultipleAttempts || false,
         });
         
         const loadedQuestions = (decodedData.questions || []).map((q, idx) => ({
@@ -311,7 +312,11 @@ export default function ExaminerCreateQuizDashboard() {
             date: quiz.scheduledDateTime ? quiz.scheduledDateTime.split('T')[0] : "",
             time: quiz.scheduledDateTime ? quiz.scheduledDateTime.split('T')[1].substring(0, 5) : "",
             duration: quiz.durationMinutes.toString(),
-            totalMarks: ""
+            totalMarks: "",
+            allowMultipleAttempts: quiz.allowMultipleAttempts || false,
+            schedulingMode: quiz.schedulingMode || "FIXED_TIME",
+            windowEndDate: quiz.windowEndDateTime ? quiz.windowEndDateTime.split('T')[0] : "",
+            windowEndTime: quiz.windowEndDateTime ? quiz.windowEndDateTime.split('T')[1].substring(0, 5) : "",
           });
           
           const loadedQuestions = quiz.questions.map((q, idx) => ({
@@ -367,12 +372,18 @@ export default function ExaminerCreateQuizDashboard() {
 
     // Combine date and time into ISO datetime string
     const scheduledDateTime = `${meta.date}T${meta.time}:00`;
+    const windowEndDateTime = meta.schedulingMode === "WINDOW" && meta.windowEndDate && meta.windowEndTime 
+      ? `${meta.windowEndDate}T${meta.windowEndTime}:00` 
+      : null;
 
     const payload = {
       title:           meta.title,
       subject:         meta.subject,
       durationMinutes: parseInt(meta.duration) || 30,
+      schedulingMode:  meta.schedulingMode,
       scheduledDateTime: scheduledDateTime,
+      windowEndDateTime: windowEndDateTime,
+      allowMultipleAttempts: meta.allowMultipleAttempts,
       questions: submittable.map(q => ({
         text:          q.text,
         options:       q.type === "truefalse" ? ["True","False"] : q.options.filter(o => o.trim()),
@@ -461,6 +472,59 @@ export default function ExaminerCreateQuizDashboard() {
           <div style={{ marginBottom:14 }}>
             <FTextarea label="Description / Instructions" placeholder="Provide any instructions or context for the candidate…" value={meta.description} onChange={e=>setM("description",e.target.value)} rows={2} />
           </div>
+
+          <div style={{ marginBottom:14, padding:14, borderRadius:10, background:meta.allowMultipleAttempts ? `${C.green}10` : `${C.orange}10`, border:`1.5px solid ${meta.allowMultipleAttempts ? `${C.green}40` : `${C.orange}40`}` }}>
+            <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", margin:0 }}>
+              <input 
+                type="checkbox" 
+                checked={meta.allowMultipleAttempts} 
+                onChange={e => setM("allowMultipleAttempts", e.target.checked)}
+                style={{ width:18, height:18, cursor:"pointer", accentColor:meta.allowMultipleAttempts ? C.green : C.orange }}
+              />
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:C.navy }}>Allow Multiple Attempts</div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
+                  {meta.allowMultipleAttempts 
+                    ? "✓ Students can retake this quiz multiple times"
+                    : "✗ Students get only one attempt"}
+                </div>
+              </div>
+            </label>
+          </div>
+          
+          <div style={{ marginTop:20 }}>
+            <label style={{ fontSize:13, fontWeight:700, color:C.navy, display:"block", marginBottom:10 }}>Scheduling Mode *</label>
+            <div style={{ display:"flex", gap:12 }}>
+              <label style={{ flex:1, display:"flex", alignItems:"center", gap:10, padding:12, borderRadius:8, border:`1.5px solid ${meta.schedulingMode === "FIXED_TIME" ? C.blue : C.border}`, background: meta.schedulingMode === "FIXED_TIME" ? `${C.blue}10` : "transparent", cursor:"pointer" }}>
+                <input 
+                  type="radio" 
+                  name="schedulingMode" 
+                  value="FIXED_TIME" 
+                  checked={meta.schedulingMode === "FIXED_TIME"}
+                  onChange={e => setM("schedulingMode", e.target.value)}
+                  style={{ width:16, height:16, cursor:"pointer", accentColor:C.blue }}
+                />
+                <div>
+                  <div style={{ fontSize:12, fontWeight:700, color:C.navy }}>Fixed Time</div>
+                  <div style={{ fontSize:10, color:C.muted }}>Global timer</div>
+                </div>
+              </label>
+              <label style={{ flex:1, display:"flex", alignItems:"center", gap:10, padding:12, borderRadius:8, border:`1.5px solid ${meta.schedulingMode === "WINDOW" ? C.blue : C.border}`, background: meta.schedulingMode === "WINDOW" ? `${C.blue}10` : "transparent", cursor:"pointer" }}>
+                <input 
+                  type="radio" 
+                  name="schedulingMode" 
+                  value="WINDOW" 
+                  checked={meta.schedulingMode === "WINDOW"}
+                  onChange={e => setM("schedulingMode", e.target.value)}
+                  style={{ width:16, height:16, cursor:"pointer", accentColor:C.blue }}
+                />
+                <div>
+                  <div style={{ fontSize:12, fontWeight:700, color:C.navy }}>Time Window</div>
+                  <div style={{ fontSize:10, color:C.muted }}>Custom window</div>
+                </div>
+              </label>
+            </div>
+          </div>
           
           <div style={{ display:"grid",gridTemplateColumns:"repeat(4, 1fr)",gap:14 }}>
             <FInput label="Date of Exam" type="date" value={meta.date} onChange={e=>setM("date",e.target.value)} required />
@@ -468,6 +532,14 @@ export default function ExaminerCreateQuizDashboard() {
             <FInput label="Duration (mins)" type="number" placeholder="e.g. 45" value={meta.duration} onChange={e=>setM("duration",e.target.value)} required />
             <FInput label="Total Marks" type="number" placeholder="e.g. 20" value={meta.totalMarks} onChange={e=>setM("totalMarks",e.target.value)} required />
           </div>
+
+          {meta.schedulingMode === "WINDOW" && (
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(2, 1fr)",gap:14, marginTop:14, padding:14, borderRadius:10, background:C.altBg, border:`1.5px solid ${C.border}` }}>
+              <FInput label="Window End Date" type="date" value={meta.windowEndDate} onChange={e=>setM("windowEndDate",e.target.value)} required />
+              <FInput label="Window End Time" type="time" value={meta.windowEndTime} onChange={e=>setM("windowEndTime",e.target.value)} required />
+              <div style={{ fontSize:11, color:C.muted, gridColumn:"1 / -1" }}>Quiz must end before this time. Duration cannot exceed window length.</div>
+            </div>
+          )}
         </>
       )}
 
