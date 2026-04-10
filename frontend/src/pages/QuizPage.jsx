@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getQuizById, submitAttempt, getCandidateQuizData, getQuizStatus } from "../api/quizApi";
 import { notificationStore } from "../utils/notificationStore";
+import { quizProgressStore } from "../utils/quizProgressStore";
 
 const C = {
   navy:"#1a3a6b", blue:"#2563eb", orange:"#f97316", green:"#16a34a", red:"#dc2626",
@@ -35,7 +36,12 @@ export default function QuizPage() {
   const [minutesLate, setMinutesLate] = useState(0); // How many minutes late
   const [effectiveDuration, setEffectiveDuration] = useState(null); // Effective duration for late join
   const [tabSwitchCount, setTabSwitchCount] = useState(() => {
-    // Load tab switch count from sessionStorage on mount
+    // Load tab switch count from localStorage (persists across logout)
+    const progress = quizProgressStore.loadProgress(id);
+    if (progress?.tabSwitchCount !== undefined) {
+      return progress.tabSwitchCount;
+    }
+    // Fallback: check sessionStorage for backward compatibility
     const stored = sessionStorage.getItem(`quiz_${id}_tabSwitches`);
     return stored ? parseInt(stored, 10) : 0;
   });
@@ -44,6 +50,7 @@ export default function QuizPage() {
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState(new Set());  // Set of question indices
   const [showNavigator, setShowNavigator] = useState(true);  // Toggle navigator sidebar
   const pageLeftRef = useRef(false);
+  const skipFirstTabSwitchRef = useRef(true);  // Skip only the first tab switch event on mount
 
   useEffect(() => {
     Promise.all([getQuizById(id), getCandidateQuizData(id), getQuizStatus(id)])
@@ -54,8 +61,14 @@ export default function QuizPage() {
         
         // Use backend's remaining minutes for accurate timer (for live quizzes)
         if (statusData?.remainingMinutes !== undefined) {
-          // Quiz is already live, use backend's calculated remaining time
-          setTimeLeft(Math.max(0, statusData.remainingMinutes * 60));
+          // For retakes, always use full duration (each attempt gets full time)
+          // For first attempt of WINDOW mode quiz, use backend's remaining time
+          if (candidateData?.attemptCount > 1) {
+            setTimeLeft(data.durationMinutes * 60);
+          } else {
+            // Quiz is already live, use backend's calculated remaining time
+            setTimeLeft(Math.max(0, statusData.remainingMinutes * 60));
+          }
         } else {
           // Quiz hasn't started yet, use full duration
           setTimeLeft(data.durationMinutes * 60);
@@ -68,7 +81,16 @@ export default function QuizPage() {
           setEffectiveDuration(statusData.effectiveDurationMinutes || data.durationMinutes);
         }
         
-        setAnswers(new Array(data.questions.length).fill(null));
+        // Load saved answers/progress if available (for resume)
+        const savedProgress = quizProgressStore.loadProgress(id);
+        if (savedProgress?.answers && savedProgress.answers.length === data.questions.length) {
+          setAnswers(savedProgress.answers);
+          setMarkedForReview(savedProgress.markedForReview);
+          setBookmarkedQuestions(savedProgress.bookmarkedQuestions);
+        } else {
+          setAnswers(new Array(data.questions.length).fill(null));
+        }
+        
         setLoading(false);
         
         // Request fullscreen mode on quiz load
@@ -137,15 +159,20 @@ export default function QuizPage() {
     return () => clearInterval(checkWindowClosed);
   }, [quiz, quizStatus, result, handleSubmit]);
 
-  // Save tab switch count to sessionStorage when it changes
+  // Save tab switch count to localStorage when it changes (persists across logout)
   useEffect(() => {
     sessionStorage.setItem(`quiz_${id}_tabSwitches`, tabSwitchCount);
-  }, [id, tabSwitchCount]);
+    // Also save to quiz progress
+    if (quiz && answers.length > 0) {
+      quizProgressStore.saveProgress(id, answers, markedForReview, bookmarkedQuestions, tabSwitchCount);
+    }
+  }, [id, tabSwitchCount, answers, markedForReview, bookmarkedQuestions, quiz]);
 
-  // Clean up sessionStorage when quiz is submitted/completed
+  // Clean up storage when quiz is submitted/completed
   useEffect(() => {
     if (result) {
       sessionStorage.removeItem(`quiz_${id}_tabSwitches`);
+      quizProgressStore.clearProgress(id); // Clear saved progress after quiz is submitted
     }
   }, [id, result]);
 
@@ -159,13 +186,12 @@ export default function QuizPage() {
     localStorage.setItem(`quiz_${id}_bookmarks`, JSON.stringify(Array.from(bookmarkedQuestions)));
   }, [id, bookmarkedQuestions]);
 
-  // Load marked and bookmarked from storage on mount
+  // Load bookmarked questions from localStorage if not already loaded
   useEffect(() => {
-    const marked = sessionStorage.getItem(`quiz_${id}_marked`);
     const bookmarks = localStorage.getItem(`quiz_${id}_bookmarks`);
-    
-    if (marked) setMarkedForReview(new Set(JSON.parse(marked)));
-    if (bookmarks) setBookmarkedQuestions(new Set(JSON.parse(bookmarks)));
+    if (bookmarks && bookmarkedQuestions.size === 0) {
+      setBookmarkedQuestions(new Set(JSON.parse(bookmarks)));
+    }
   }, [id]);
 
   // Track browser back/forward navigation via location changes
@@ -180,6 +206,12 @@ export default function QuizPage() {
 
     // If we were away and now returning to this specific quiz page
     if (isCurrentlyOnQuiz && pageLeftRef.current === true) {
+      // Skip the first return event on mount (resume loading)
+      if (skipFirstTabSwitchRef.current) {
+        skipFirstTabSwitchRef.current = false;
+        return;
+      }
+
       pageLeftRef.current = false;
       
       const newCount = tabSwitchCount + 1;
@@ -234,6 +266,13 @@ export default function QuizPage() {
       if (document.hidden) {
         pageLeftViaNavigation = true;
       } else if (pageLeftViaNavigation) {
+        // Skip the first visibility change on mount (resume loading)
+        if (skipFirstTabSwitchRef.current) {
+          skipFirstTabSwitchRef.current = false;
+          pageLeftViaNavigation = false;
+          return;
+        }
+        
         // Page became visible after being hidden
         pageLeftViaNavigation = false;
         const newCount = tabSwitchCount + 1;
@@ -258,6 +297,13 @@ export default function QuizPage() {
     // When page regains focus after beforeunload
     const handleFocus = () => {
       if (pageLeftViaNavigation) {
+        // Skip the first focus event on mount (resume loading)
+        if (skipFirstTabSwitchRef.current) {
+          skipFirstTabSwitchRef.current = false;
+          pageLeftViaNavigation = false;
+          return;
+        }
+        
         pageLeftViaNavigation = false;
         const newCount = tabSwitchCount + 1;
         setTabSwitchCount(newCount);

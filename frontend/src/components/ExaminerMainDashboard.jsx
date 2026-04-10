@@ -107,13 +107,48 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
   const durationLabel = `${quiz.durationMinutes} min`;
   const qCount = quiz.questions?.length || 0;
   
+  // Calculate remaining time
+  let endDateTime = null;
+  if (quiz.schedulingMode === "WINDOW" && quiz.windowEndDateTime) {
+    endDateTime = new Date(quiz.windowEndDateTime);
+  } else if (quiz.schedulingMode === "FIXED_TIME" && quiz.scheduledDateTime) {
+    const scheduled = new Date(quiz.scheduledDateTime);
+    endDateTime = new Date(scheduled.getTime() + quiz.durationMinutes * 60 * 1000);
+  }
+  let remainingTimeStr = "";
+  if (endDateTime) {
+    const now = new Date();
+    let diffMs = endDateTime - now;
+    if (diffMs > 0) {
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      diffMs %= (1000 * 60 * 60 * 24);
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      diffMs %= (1000 * 60 * 60);
+      const mins = Math.floor(diffMs / (1000 * 60));
+      const secs = Math.floor((diffMs % (1000 * 60)) / 1000);
+      const parts = [];
+      if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+      if (hours > 0) parts.push(`${hours} hr${hours !== 1 ? "s" : ""}`);
+      if (mins > 0) parts.push(`${mins} min`);
+      if (secs > 0 || parts.length === 0) parts.push(`${secs} sec`);
+      remainingTimeStr = parts.slice(0, 3).join(" ");
+    }
+  }
+  
   // Format scheduled date/time for display
   let dateStr = "—";
   let timeStr = "";
+  let windowEndStr = "";
   if (quiz.scheduledDateTime) {
     const scheduled = new Date(quiz.scheduledDateTime);
     dateStr = scheduled.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
     timeStr = scheduled.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+    
+    // For WINDOW mode, get window end time
+    if (quiz.schedulingMode === "WINDOW" && quiz.windowEndDateTime) {
+      const windowEndDate = new Date(quiz.windowEndDateTime);
+      windowEndStr = windowEndDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+    }
   }
   
   const attemptCount = quiz.attemptCount || 0;
@@ -164,13 +199,25 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
       <div style={{ padding:"13px 14px",borderRadius:12,border:`1.5px solid ${C.border}`,background:C.bg }}>
         <div style={{ display:"flex",justifyContent:"space-between",gap:8,marginBottom:7 }}>
           <div style={{ fontSize:13,fontWeight:700,color:C.navy,lineHeight:1.35 }}>{quiz.title}</div>
-          <span style={{ padding:"3px 10px",borderRadius:999,fontSize:11,fontWeight:700,background:"#fff3ee",color:C.orange,whiteSpace:"nowrap",flexShrink:0 }}>{durationLabel}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {remainingTimeStr && quizType === "live" && (
+              <span style={{ padding:"3px 10px", borderRadius:999, fontSize:10, fontWeight:700, background:"#fef3c7", color:C.orange, whiteSpace:"nowrap" }}>📅 {remainingTimeStr}</span>
+            )}
+            <span style={{ padding:"3px 10px",borderRadius:999,fontSize:11,fontWeight:700,background:"#fff3ee",color:C.orange,whiteSpace:"nowrap",flexShrink:0 }}>{durationLabel}</span>
+          </div>
         </div>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6,marginBottom:10 }}>
           <Badge subject={quiz.subject} />
           <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:1 }}>
             <span style={{ fontSize:11,fontWeight:600,color:C.blue }}>{dateStr}</span>
-            <span style={{ fontSize:10,color:C.muted,display:"flex",alignItems:"center",gap:3 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {timeStr}</span>
+            {quiz.schedulingMode === "WINDOW" ? (
+              <span style={{ fontSize:10,color:C.muted,display:"flex",alignItems:"center",gap:3 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                {timeStr}
+              </span>
+            ) : (
+              <span style={{ fontSize:10,color:C.muted,display:"flex",alignItems:"center",gap:3 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {timeStr} • {quiz.durationMinutes}m</span>
+            )}
           </div>
         </div>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,paddingBottom:10,borderBottom:`1px solid ${C.border}`,marginBottom:10 }}>

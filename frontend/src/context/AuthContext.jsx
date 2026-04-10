@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("name");
     localStorage.removeItem("role");
     localStorage.removeItem("email");
-    // Clear session tracking on logout
+    // Clear session tracking on logout but PRESERVE quiz progress for resume
     sessionStorage.removeItem("lastPage");
     setUser(null);
   };
