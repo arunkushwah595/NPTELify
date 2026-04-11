@@ -13,8 +13,8 @@ COPY backend/src ./src
 # Build the application
 RUN mvn clean package -DskipTests
 
-# Runtime stage
-FROM openjdk:17-slim
+# Runtime stage - use JRE only (smaller image)
+FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
