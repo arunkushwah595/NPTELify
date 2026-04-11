@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8080/api/auth";
+const BASE_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/auth`;
 
 async function parseResponse(res, fallbackMessage) {
   const text = await res.text();
