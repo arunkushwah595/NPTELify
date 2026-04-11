@@ -59,18 +59,23 @@ export default function QuizPage() {
         setCandidateQuizData(candidateData);
         setQuizStatus(statusData);
         
-        // Use backend's remaining minutes for accurate timer (for live quizzes)
-        if (statusData?.remainingMinutes !== undefined) {
+        // ✅ FIX: Calculate remaining time using server time + end time (timezone-safe)
+        if (statusData?.endTime && statusData?.serverTime) {
+          const serverTime = new Date(statusData.serverTime).getTime();
+          const endTime = new Date(statusData.endTime).getTime();
+          const remainingMs = Math.max(0, endTime - serverTime);
+          const remainingSeconds = Math.floor(remainingMs / 1000);
+          
           // For retakes, always use full duration (each attempt gets full time)
-          // For first attempt of WINDOW mode quiz, use backend's remaining time
+          // For first attempt of WINDOW mode quiz, use calculated remaining time
           if (candidateData?.attemptCount > 1) {
             setTimeLeft(data.durationMinutes * 60);
           } else {
-            // Quiz is already live, use backend's calculated remaining time
-            setTimeLeft(Math.max(0, statusData.remainingMinutes * 60));
+            // Quiz is already live, use calculated remaining time from dates
+            setTimeLeft(remainingSeconds);
           }
         } else {
-          // Quiz hasn't started yet, use full duration
+          // Fallback: use full duration if statusData is incomplete
           setTimeLeft(data.durationMinutes * 60);
         }
         
@@ -123,9 +128,18 @@ export default function QuizPage() {
         notificationStore.notifyResultsAvailable(quiz.title);
       }
     } catch (e) {
-      alert(e.message || "Submission failed. Please try again.");
+      // Don't show "Quiz not available" error if auto-submitting (quiz already ended)
+      // This can happen in WINDOW mode when the window closes before manual submit
+      const errorMsg = e.message || "Submission failed. Please try again.";
+      if (!forced || !errorMsg.includes("not available")) {
+        alert(errorMsg);
+      }
       setSubmitting(false);
       setAutoSubmitting(false);
+      // Still show result if it's a "not available" error during auto-submit (quiz ended normally)
+      if (forced && errorMsg.includes("not available")) {
+        setResult({ isSubmitted: true, message: "Quiz window closed. Your answers were submitted." });
+      }
     }
   }, [id, answers, submitting, quiz]);
 
