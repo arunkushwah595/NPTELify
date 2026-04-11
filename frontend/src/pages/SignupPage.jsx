@@ -174,17 +174,16 @@ const ROLES = [
       </svg>
     ),
   },
-  // COMMENTED OUT: Examiner role disabled for new signups
-  // {
-  //   id: "examiner",
-  //   label: "Examiner",
-  //   desc: "I'm creating & managing quizzes",
-  //   icon: (
-  //     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:22, height:22 }}>
-  //       <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-  //     </svg>
-  //   ),
-  // },
+  {
+    id: "examiner",
+    label: "Examiner",
+    desc: "I'm creating & managing quizzes",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:22, height:22 }}>
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+      </svg>
+    ),
+  },
 ];
 
 function RoleSelector({ value, onChange }) {
@@ -298,7 +297,7 @@ function SubmitButton({ loading, bg, hoverBg, loadingBg, children }) {
 
 
 export default function SignupPage() {
-  const [form, setForm]     = useState({ name:"", email:"", password:"", confirm:"", role : "candidate" }); // Default role set to candidate
+  const [form, setForm]     = useState({ name:"", email:"", password:"", confirm:"", role : "" }); // Role must be selected
   const [show, setShow]     = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr]       = useState("");
@@ -311,8 +310,8 @@ export default function SignupPage() {
   const submit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.password || !form.confirm) { setErr("Please fill in all fields."); return; }
-    // Role validation - default to candidate
-    // if (!form.role) { setErr("Please select a role."); return; }
+    // Role validation
+    if (!form.role) { setErr("Please select a role."); return; }
     if (form.password !== form.confirm) { setErr("Passwords don't match."); return; }
     if (form.password.length < 6) { setErr("Password must be at least 6 characters."); return; }
     if (!agreed) { setErr("Please accept the terms to continue."); return; }
@@ -377,8 +376,8 @@ export default function SignupPage() {
               <TextInput label="Full name"      name="name"  type="text"  placeholder="Priya Sharma"      value={form.name}  onChange={handle} />
               <TextInput label="Email address"  name="email" type="email" placeholder="you@example.com"   value={form.email} onChange={handle} />
 
-              {/* COMMENTED OUT: Role selection - only candidate role available */}
-              {/* <RoleSelector value={form.role} onChange={role => { setForm(p => ({ ...p, role })); setErr(""); }} /> */}
+              {/* Role selection */}
+              <RoleSelector value={form.role} onChange={role => { setForm(p => ({ ...p, role })); setErr(""); }} />
 
               {/* Password with strength */}
               <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
