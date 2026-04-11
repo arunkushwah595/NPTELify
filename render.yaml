@@ -1,0 +1,28 @@
+services:
+- type: web
+  name: nptelify-backend
+  runtime: docker
+  plan: free
+  region: oregon
+  
+  # Port configuration
+  port: 8080
+  
+  # Environment variables (configure these in Render dashboard)
+  envVars:
+    - key: DB_URL
+      sync: false
+    - key: DB_USERNAME
+      sync: false
+    - key: DB_PASSWORD
+      sync: false
+    - key: JWT_SECRET
+      sync: false
+    - key: JAVA_OPTS
+      value: "-Xmx512m"
+  
+  # Build command
+  buildCommand: "docker build -t nptelify-backend ."
+  
+  # Health check
+  healthCheckPath: /api/health
