@@ -14,7 +14,7 @@ COPY backend/src ./src
 RUN mvn clean package -DskipTests
 
 # Runtime stage
-FROM eclipse-temurin:17-jdk-slim
+FROM eclipse-temurin:17.0.10-7-jdk-slim
 
 WORKDIR /app
 
