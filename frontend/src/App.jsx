@@ -1,11 +1,13 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthRoutes from './routes/authRoutes';
 import CandidateRoutes from './routes/candidateRoutes';
 import ExaminerRoutes from './routes/examinerRoutes';
 import { notificationStore } from './utils/notificationStore';
+import { useInactivityLogout } from './hooks/useInactivityLogout';
+import { SessionWarningModal } from './components/SessionWarningModal';
 
 // Component to sync auth state with notification store
 function NotificationSyncProvider({ children }) {
@@ -22,6 +24,44 @@ function NotificationSyncProvider({ children }) {
   }, [auth.user]);
 
   return children;
+}
+
+// Component to manage session inactivity timeout
+function InactivityManager({ children }) {
+  const { user, logout } = useAuth();
+  const [showWarning, setShowWarning] = useState(false);
+
+  const handleLogout = () => {
+    setShowWarning(false);
+    logout();
+  };
+
+  const handleStayLoggedIn = () => {
+    setShowWarning(false);
+  };
+
+  useInactivityLogout({
+    onWarning: () => {
+      if (user) {
+        setShowWarning(true);
+      }
+    },
+    onLogout: () => {
+      handleLogout();
+    },
+  });
+
+  return (
+    <>
+      {children}
+      <SessionWarningModal
+        isOpen={showWarning}
+        secondsRemaining={120}
+        onStayLoggedIn={handleStayLoggedIn}
+        onLogout={handleLogout}
+      />
+    </>
+  );
 }
 
 // Main route dispatcher - combines all routes with protection
@@ -46,9 +86,11 @@ function AppRoutes() {
 const App = () => {
     return(
         <AuthProvider>
-            <NotificationSyncProvider>
+            <InactivityManager>
+              <NotificationSyncProvider>
                 <AppRoutes />
-            </NotificationSyncProvider>
+              </NotificationSyncProvider>
+            </InactivityManager>
         </AuthProvider>
     );
 };
