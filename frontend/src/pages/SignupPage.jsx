@@ -174,17 +174,16 @@ const ROLES = [
       </svg>
     ),
   },
-  // COMMENTED OUT: Examiner role disabled for new signups
-  // {
-  //   id: "examiner",
-  //   label: "Examiner",
-  //   desc: "I'm creating & managing quizzes",
-  //   icon: (
-  //     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:22, height:22 }}>
-  //       <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-  //     </svg>
-  //   ),
-  // },
+  {
+    id: "examiner",
+    label: "Examiner",
+    desc: "I'm creating & managing quizzes",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:22, height:22 }}>
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+      </svg>
+    ),
+  },
 ];
 
 function RoleSelector({ value, onChange }) {
@@ -298,23 +297,29 @@ function SubmitButton({ loading, bg, hoverBg, loadingBg, children }) {
 
 
 export default function SignupPage() {
-  const [form, setForm]     = useState({ name:"", email:"", password:"", confirm:"", role : "candidate" }); // Default role set to candidate
+  const [form, setForm]     = useState({ name:"", email:"", password:"", confirm:"", role : "candidate", examinerCode: "" }); // Default role set to candidate
   const [show, setShow]     = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr]       = useState("");
   const [agreed, setAgreed] = useState(false);
   const navigate = useNavigate();
   const auth = useAuth();
+  
+  // Examiner invite code - change this to your secret code
+  const EXAMINER_INVITE_CODE = "EXAMINER@2026";
 
   const handle = e => { setForm(p => ({ ...p, [e.target.name]: e.target.value })); setErr(""); };
 
   const submit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.password || !form.confirm) { setErr("Please fill in all fields."); return; }
-    // Role validation - default to candidate
-    // if (!form.role) { setErr("Please select a role."); return; }
     if (form.password !== form.confirm) { setErr("Passwords don't match."); return; }
     if (form.password.length < 6) { setErr("Password must be at least 6 characters."); return; }
+    // Check examiner code if selecting examiner role
+    if (form.role === "examiner" && form.examinerCode !== EXAMINER_INVITE_CODE) { 
+      setErr("Invalid examiner invite code. Contact admin."); 
+      return; 
+    }
     if (!agreed) { setErr("Please accept the terms to continue."); return; }
     setLoading(true);
     setErr("");
@@ -377,8 +382,24 @@ export default function SignupPage() {
               <TextInput label="Full name"      name="name"  type="text"  placeholder="Priya Sharma"      value={form.name}  onChange={handle} />
               <TextInput label="Email address"  name="email" type="email" placeholder="you@example.com"   value={form.email} onChange={handle} />
 
-              {/* COMMENTED OUT: Role selection - only candidate role available */}
-              {/* <RoleSelector value={form.role} onChange={role => { setForm(p => ({ ...p, role })); setErr(""); }} /> */}
+              {/* Role selector */}
+              <RoleSelector value={form.role} onChange={role => { setForm(p => ({ ...p, role })); setErr(""); }} />
+
+              {/* Examiner invite code - show only when examiner is selected */}
+              {form.role === "examiner" && (
+                <div style={{ display:"flex", flexDirection:"column", gap:4, padding:"12px", borderRadius:10, background:"#fef3c7", border:`1.5px solid #fcd34d` }}>
+                  <label style={{ fontSize:13, fontWeight:700, color:"#92400e" }}>Examiner Invite Code</label>
+                  <input
+                    type="password"
+                    name="examinerCode"
+                    placeholder="Enter invite code to register as examiner"
+                    value={form.examinerCode}
+                    onChange={handle}
+                    style={{ padding:"10px 12px", borderRadius:8, border:`1.5px solid #fcd34d`, fontSize:13, fontFamily:C.font, background:"#fffbeb", outline:"none" }}
+                  />
+                  <span style={{ fontSize:11, color:"#b45309" }}>You need a valid code to register as examiner</span>
+                </div>
+              )}
 
               {/* Password with strength */}
               <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
