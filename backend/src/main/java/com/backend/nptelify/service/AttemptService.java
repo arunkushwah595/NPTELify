@@ -13,7 +13,9 @@ import com.backend.nptelify.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -43,7 +45,7 @@ public class AttemptService {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
 
         // Validate that the quiz can be started using the timer service
         if (!quizTimerService.canStartQuiz(quiz, now)) {

@@ -11,12 +11,16 @@ import com.backend.nptelify.entity.Quiz;
 import com.backend.nptelify.entity.SchedulingMode;
 import com.backend.nptelify.entity.User;
 import com.backend.nptelify.repository.AttemptRepository;
+import com.backend.nptelify.repository.QuestionRepository;
 import com.backend.nptelify.repository.QuizRepository;
 import com.backend.nptelify.repository.UserRepository;
+import com.backend.nptelify.repository.UserQuestionBankRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,14 +31,19 @@ public class QuizService {
     private final QuizRepository quizRepository;
     private final UserRepository userRepository;
     private final AttemptRepository attemptRepository;
+    private final QuestionRepository questionRepository;
+    private final UserQuestionBankRepository userQuestionBankRepository;
     private final QuizTimerService quizTimerService;
     private final QuizSchedulingValidator quizSchedulingValidator;
 
     public QuizService(QuizRepository quizRepository, UserRepository userRepository, AttemptRepository attemptRepository,
+                       QuestionRepository questionRepository, UserQuestionBankRepository userQuestionBankRepository, 
                        QuizTimerService quizTimerService, QuizSchedulingValidator quizSchedulingValidator) {
         this.quizRepository = quizRepository;
         this.userRepository = userRepository;
         this.attemptRepository = attemptRepository;
+        this.questionRepository = questionRepository;
+        this.userQuestionBankRepository = userQuestionBankRepository;
         this.quizTimerService = quizTimerService;
         this.quizSchedulingValidator = quizSchedulingValidator;
     }
@@ -95,7 +104,7 @@ public class QuizService {
 
     @Transactional(readOnly = true)
     public List<QuizResponse> getUpcomingQuizzes() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
         return quizRepository.findAll().stream()
                 .filter(q -> q.getScheduledDateTime() != null && q.getScheduledDateTime().isAfter(now))
                 .sorted((a, b) -> a.getScheduledDateTime().compareTo(b.getScheduledDateTime()))
@@ -107,7 +116,7 @@ public class QuizService {
     public List<QuizResponse> getMyUpcomingQuizzes(String examinerEmail) {
         User examiner = userRepository.findByEmail(examinerEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Examiner not found"));
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
         return quizRepository.findByExaminer(examiner).stream()
                 .filter(q -> q.getScheduledDateTime() != null && q.getScheduledDateTime().isAfter(now))
                 .sorted((a, b) -> a.getScheduledDateTime().compareTo(b.getScheduledDateTime()))
@@ -117,7 +126,7 @@ public class QuizService {
 
     @Transactional(readOnly = true)
     public List<QuizResponse> getPastQuizzes() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
         return quizRepository.findAll().stream()
                 .filter(q -> q.getScheduledDateTime() != null && q.getScheduledDateTime().isBefore(now))
                 .sorted((a, b) -> b.getScheduledDateTime().compareTo(a.getScheduledDateTime()))
@@ -129,7 +138,7 @@ public class QuizService {
     public List<QuizResponse> getMyPastQuizzes(String examinerEmail) {
         User examiner = userRepository.findByEmail(examinerEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Examiner not found"));
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
         return quizRepository.findByExaminer(examiner).stream()
                 .filter(q -> q.getScheduledDateTime() != null && q.getScheduledDateTime().isBefore(now))
                 .sorted((a, b) -> b.getScheduledDateTime().compareTo(a.getScheduledDateTime()))
@@ -207,12 +216,27 @@ public class QuizService {
             throw new IllegalArgumentException("You can only delete your own quizzes");
         }
 
-        // Check if quiz has attempts
+        // Delete all attempts related to this quiz (cascading delete)
+        // This also deletes attempt_answers automatically
         List<Attempt> attempts = attemptRepository.findByQuiz(quiz);
         if (!attempts.isEmpty()) {
-            throw new IllegalArgumentException("Cannot delete a quiz that has attempts");
+            attemptRepository.deleteAll(attempts);
         }
 
+        // Delete all questions related to this quiz (cascading delete)
+        List<Question> questions = quiz.getQuestions();
+        if (questions != null && !questions.isEmpty()) {
+            // Delete UserQuestionBank entries first (Question Bank references)
+            for (Question question : questions) {
+                userQuestionBankRepository.deleteAll(
+                    userQuestionBankRepository.findByQuestion(question)
+                );
+            }
+            // Questions and their options should cascade delete via JPA relationships
+            questionRepository.deleteAll(questions);
+        }
+
+        // Finally delete the quiz
         quizRepository.deleteById(id);
     }
 
@@ -327,7 +351,8 @@ public class QuizService {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
 
-        LocalDateTime currentTime = LocalDateTime.now();
+        // ✅ FIX: Use UTC time for timezone-safe calculations
+        LocalDateTime currentTime = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
         long remainingMinutes = quizTimerService.getRemainingMinutes(quiz, currentTime);
         boolean canStart = quizTimerService.canStartQuiz(quiz, currentTime);
         boolean isLateJoin = quizTimerService.isLatJoin(quiz, currentTime);
@@ -353,7 +378,7 @@ public class QuizService {
             endTime = quiz.getWindowEndDateTime();
         }
 
-        String statusMessage = generateStatusMessage(quiz, status, isLateJoin, minutesLate, remainingMinutes, effectiveDuration);
+        String statusMessage = generateStatusMessage(quiz, status, isLateJoin, minutesLate, remainingMinutes, effectiveDuration, currentTime);
 
         return new QuizStatusResponse(
                 quiz.getId(),
@@ -373,12 +398,12 @@ public class QuizService {
 
     private String generateStatusMessage(Quiz quiz, QuizStatusResponse.QuizStatus status,
                                          boolean isLateJoin, long minutesLate, long remainingMinutes,
-                                         long effectiveDuration) {
+                                         long effectiveDuration, LocalDateTime currentTime) {
         switch (status) {
             case UPCOMING:
                 long minutesUntilStart = quiz.getSchedulingMode() == SchedulingMode.FIXED_TIME
-                        ? ChronoUnit.MINUTES.between(LocalDateTime.now(), quiz.getScheduledDateTime())
-                        : ChronoUnit.MINUTES.between(LocalDateTime.now(), quiz.getScheduledDateTime());
+                        ? ChronoUnit.MINUTES.between(currentTime, quiz.getScheduledDateTime())
+                        : ChronoUnit.MINUTES.between(currentTime, quiz.getScheduledDateTime());
                 return String.format("Quiz starts in %d minutes", Math.max(0, minutesUntilStart));
 
             case LIVE:

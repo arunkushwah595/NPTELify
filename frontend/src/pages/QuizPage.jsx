@@ -59,25 +59,27 @@ export default function QuizPage() {
         setCandidateQuizData(candidateData);
         setQuizStatus(statusData);
         
-        // ✅ FIX: Calculate remaining time using server time + end time (timezone-safe)
-        if (statusData?.endTime && statusData?.serverTime) {
-          const serverTime = new Date(statusData.serverTime).getTime();
-          const endTime = new Date(statusData.endTime).getTime();
-          const remainingMs = Math.max(0, endTime - serverTime);
-          const remainingSeconds = Math.floor(remainingMs / 1000);
-          
-          // For retakes, always use full duration (each attempt gets full time)
-          // For first attempt of WINDOW mode quiz, use calculated remaining time
-          if (candidateData?.attemptCount > 1) {
-            setTimeLeft(data.durationMinutes * 60);
+        // ✅ FIX: Calculate remaining time - smart fallback logic
+        let timeLeftSeconds = data.durationMinutes * 60; // Default: full duration
+        
+        // For retakes, always use full duration
+        if (candidateData?.attemptCount > 1) {
+          timeLeftSeconds = data.durationMinutes * 60;
+        } else if (statusData?.remainingMinutes !== undefined) {
+          // ✅ Validate: If remaining minutes > 1.5x quiz duration, it's wrong
+          // (likely a timezone/backend calculation issue)
+          const maxExpectedMinutes = data.durationMinutes * 1.5;
+          if (statusData.remainingMinutes <= maxExpectedMinutes) {
+            // Use backend's remaining minutes (already calculated correctly)
+            timeLeftSeconds = statusData.remainingMinutes * 60;
           } else {
-            // Quiz is already live, use calculated remaining time from dates
-            setTimeLeft(remainingSeconds);
+            // Backend calculation is wrong (timezone issue), use full duration
+            console.warn(`Backend remainingMinutes (${statusData.remainingMinutes}) exceeds expected max. Using full duration.`);
+            timeLeftSeconds = data.durationMinutes * 60;
           }
-        } else {
-          // Fallback: use full duration if statusData is incomplete
-          setTimeLeft(data.durationMinutes * 60);
         }
+        
+        setTimeLeft(timeLeftSeconds);
         
         // Set up late join warning if applicable
         if (statusData?.isLateJoin) {

@@ -248,43 +248,49 @@ function QuizCard({ quiz, onRefresh, quizType = "upcoming" }) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M3 3v18h18M3 18l4-5 4 3 5-7 5 3"/></svg>
                 <span>Review</span>
               </button>
-              <button onClick={handleCopyQuiz} disabled={copying} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.purple,background:"transparent",color:C.purple,cursor:copying?"not-allowed":"pointer",transition:"all 0.2s",opacity:copying?0.6:1,display:"flex",alignItems:"center",gap:6 }}>
-                {copying ? (
-                  <>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14, animation:"spin 1s linear infinite" }}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                    <span>Copying...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                    <span>Copy</span>
-                  </>
-                )}
+              <button onClick={() => setShowDeleteConfirm(true)} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.red,background:"transparent",color:C.red,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:6 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Delete</span>
               </button>
             </>
           )}
           {quizType === "live" && (
-            <button onClick={handleLiveResults} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.red,background:"transparent",color:C.red,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:6 }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M3 3v18h18M3 18l4-5 4 3 5-7 5 3"/></svg>
-              <span>Live Results</span>
-            </button>
+            <>
+              <button onClick={handleLiveResults} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.blue,background:"transparent",color:C.blue,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:6 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M3 3v18h18M3 18l4-5 4 3 5-7 5 3"/></svg>
+                <span>Live Results</span>
+              </button>
+              <button onClick={() => setShowDeleteConfirm(true)} style={{ padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:8,border:"1.5px solid "+C.red,background:"transparent",color:C.red,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:6 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Delete</span>
+              </button>
+            </>
           )}
         </div>
       </div>
       
       {showDeleteConfirm && (
         <div style={{ position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000 }}>
-          <div style={{ background:C.card,borderRadius:16,padding:"24px",maxWidth:400,boxShadow:"0 10px 40px rgba(0,0,0,0.1)" }}>
-            <div style={{ fontSize:16,fontWeight:700,color:C.navy,marginBottom:8 }}>Delete Quiz?</div>
-            <div style={{ fontSize:14,color:C.body,marginBottom:20 }}>
-              Are you sure you want to delete "{quiz.title}"? This action cannot be undone.
+          <div style={{ background:C.card,borderRadius:16,padding:"24px",maxWidth:420,boxShadow:"0 10px 40px rgba(0,0,0,0.1)" }}>
+            <div style={{ fontSize:16,fontWeight:700,color:C.navy,marginBottom:8 }}>🗑️ Delete Quiz?</div>
+            <div style={{ fontSize:14,color:C.body,marginBottom:16 }}>
+              <strong>"{quiz.title}"</strong> will be permanently deleted.
+            </div>
+            <div style={{ padding:"12px",borderRadius:8,background:"#fef2f2",border:"1.5px solid #fca5a5",marginBottom:16 }}>
+              <div style={{ fontSize:12,fontWeight:700,color:"#991b1b",marginBottom:6 }}>⚠️ This will also delete:</div>
+              <ul style={{ fontSize:12,color:"#991b1b",marginBottom:0,paddingLeft:20 }}>
+                <li>All student attempts ({attemptCount})</li>
+                <li>All student solutions & answers</li>
+                <li>All quiz questions & options</li>
+                <li>All related data</li>
+              </ul>
             </div>
             <div style={{ display:"flex",gap:12,justifyContent:"flex-end" }}>
               <button onClick={() => setShowDeleteConfirm(false)} disabled={deleting} style={{ padding:"8px 16px",fontSize:13,fontWeight:600,borderRadius:8,border:`1.5px solid ${C.border}`,background:C.bg,color:C.navy,cursor:"pointer" }}>
                 Cancel
               </button>
               <button onClick={handleDelete} disabled={deleting} style={{ padding:"8px 16px",fontSize:13,fontWeight:600,borderRadius:8,border:`1.5px solid ${C.red}`,background:C.red,color:"white",cursor:"pointer",opacity:deleting?0.7:1 }}>
-                {deleting ? "Deleting..." : "Delete"}
+                {deleting ? "Deleting..." : "Delete Permanently"}
               </button>
             </div>
           </div>

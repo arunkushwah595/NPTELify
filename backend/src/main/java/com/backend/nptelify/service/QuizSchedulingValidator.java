@@ -5,7 +5,9 @@ import com.backend.nptelify.entity.SchedulingMode;
 import com.backend.nptelify.dto.QuizRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;import java.time.ZonedDateTime;import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 
 /**
@@ -57,7 +59,14 @@ public class QuizSchedulingValidator {
         }
 
         // Start time should be in the future
-        if (request.getScheduledDateTime().isBefore(LocalDateTime.now())) {
+        // ⚠️ Frontend sends times as naive (assumed IST), so treat them as IST and convert to UTC for comparison
+        LocalDateTime now = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
+        
+        LocalDateTime requestedTime = request.getScheduledDateTime();
+        ZonedDateTime istTime = requestedTime.atZone(ZoneId.of("Asia/Kolkata"));
+        LocalDateTime requestedUtc = istTime.withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime();
+        
+        if (requestedUtc.isBefore(now)) {
             throw new IllegalArgumentException("Quiz start time cannot be in the past");
         }
     }
@@ -82,7 +91,14 @@ public class QuizSchedulingValidator {
         }
 
         // Window start should not be before now
-        if (request.getScheduledDateTime().isBefore(LocalDateTime.now())) {
+        // ⚠️ Frontend sends times as naive (assumed IST), so treat them as IST and convert to UTC for comparison
+        LocalDateTime now = Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime();
+        
+        LocalDateTime startTime = request.getScheduledDateTime();
+        ZonedDateTime istStart = startTime.atZone(ZoneId.of("Asia/Kolkata"));
+        LocalDateTime startUtc = istStart.withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime();
+        
+        if (startUtc.isBefore(now)) {
             throw new IllegalArgumentException("Window start time cannot be in the past");
         }
 

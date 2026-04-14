@@ -13,6 +13,8 @@ public interface UserQuestionBankRepository extends JpaRepository<UserQuestionBa
 
     Optional<UserQuestionBank> findByUserAndQuestion(User user, Question question);
 
+    List<UserQuestionBank> findByQuestion(Question question);
+
     boolean existsByUserAndQuestion(User user, Question question);
 
     long countByUser(User user);
