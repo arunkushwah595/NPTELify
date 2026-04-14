@@ -7,6 +7,7 @@ import NotificationCenter from "../components/NotificationCenter";
 import ProfileDropdown from "../components/ProfileDropdown";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getUpcomingQuizzes, getPastQuizzes } from "../api/quizApi";
 const C = {
   navy: "#1a3a6b", blue: "#2563eb", orange: "#f97316", red: "#dc2626",
   bg: "#f5f8ff", card: "#ffffff", altBg: "#eaf0fb",
@@ -283,18 +284,14 @@ function CalendarPanel() {
     const fetchQuizzes = async () => {
       try {
         const [upcomingData, pastData] = await Promise.all([
-          fetch(`/api/quizzes/upcoming/all`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-          }).then(r => r.json()),
-          fetch(`/api/quizzes/past/all`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-          }).then(r => r.json())
+          getUpcomingQuizzes(),
+          getPastQuizzes()
         ]);
         
-        setUpcomingQuizzes(upcomingData || []);
-        setPastQuizzes(pastData || []);
+        setUpcomingQuizzes(Array.isArray(upcomingData) ? upcomingData : []);
+        setPastQuizzes(Array.isArray(pastData) ? pastData : []);
       } catch (e) {
-        console.error("Failed to fetch quizzes:", e);
+        console.error("[CandidateDashboard] Failed to fetch quizzes:", e);
         setUpcomingQuizzes([]);
         setPastQuizzes([]);
       } finally {

@@ -18,10 +18,37 @@ function clearAuthAndRedirect() {
   window.location.replace("/login");
 }
 
+// Retry helper with exponential backoff
+async function requestWithRetry(url, options = {}, maxRetries = 3) {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await request(url, options);
+    } catch (error) {
+      lastError = error;
+      const statusCode = error.message.match(/HTTP (\d+)/)?.[1];
+      
+      // Don't retry on 401 (auth), 403 (forbidden), or 404 (not found)
+      if (statusCode === "401" || statusCode === "403" || statusCode === "404") {
+        throw error;
+      }
+      
+      // Only retry on server errors (5xx) or network errors
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt - 1) * 1000; // Exponential backoff: 1s, 2s, 4s
+        console.warn(`[quizApi] Request failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, error.message);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw new Error(`Request failed after ${maxRetries} attempts: ${lastError.message}`);
+}
+
 async function request(url, options = {}) {
   const authHeaders = getAuthHeaders();
   const fullUrl = API_BASE_URL + url;
-  const token = localStorage.getItem("token");
   
   const fetchOptions = {
     ...options,
@@ -31,16 +58,38 @@ async function request(url, options = {}) {
     }
   };
   
-  const res = await fetch(fullUrl, fetchOptions);
+  let res;
+  let text = "";
+  
+  try {
+    res = await fetch(fullUrl, fetchOptions);
+  } catch (networkError) {
+    console.error(`[quizApi] Network error at ${url}:`, networkError.message);
+    throw new Error(`Network error: ${networkError.message}`);
+  }
   
   if (res.status === 401) {
     clearAuthAndRedirect();
     throw new Error("Session expired. Please log in again.");
   }
   
-  const text = await res.text();
+  try {
+    text = await res.text();
+  } catch (readError) {
+    console.error(`[quizApi] Error reading response for ${url}:`, readError.message);
+    throw new Error("Failed to read server response");
+  }
+  
   let data = {};
-  try { if (text) data = JSON.parse(text); } catch { /* non-JSON */ }
+  try { 
+    if (text) data = JSON.parse(text); 
+  } catch (parseError) {
+    // Log the actual response for debugging
+    console.error(`[quizApi] JSON parse error for ${url}, HTTP ${res.status}:`, text.substring(0, 200));
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: Server returned invalid response (not JSON)`);
+    }
+  }
   
   if (!res.ok) {
     const errorMessage = data.message || data.error || `HTTP ${res.status}: Request failed`;
@@ -54,9 +103,9 @@ async function request(url, options = {}) {
 export const createQuiz = (body) =>
   request("/api/quizzes", { method: "POST", body: JSON.stringify(body) });
 
-export const getAllQuizzes = () => request("/api/quizzes");
+export const getAllQuizzes = () => requestWithRetry("/api/quizzes");
 
-export const getMyQuizzes = () => request("/api/quizzes/mine");
+export const getMyQuizzes = () => requestWithRetry("/api/quizzes/mine");
 
 export const getQuizById = (id) => request(`/api/quizzes/${id}`);
 
@@ -66,15 +115,15 @@ export const updateQuiz = (id, body) =>
 export const deleteQuiz = (id) =>
   request(`/api/quizzes/${id}`, { method: "DELETE" });
 
-export const getUpcomingQuizzes = () => request("/api/quizzes/upcoming/all");
+export const getUpcomingQuizzes = () => requestWithRetry("/api/quizzes/upcoming/all");
 
-export const getMyUpcomingQuizzes = () => request("/api/quizzes/upcoming/mine");
+export const getMyUpcomingQuizzes = () => requestWithRetry("/api/quizzes/upcoming/mine");
 
-export const getPastQuizzes = () => request("/api/quizzes/past/all");
+export const getPastQuizzes = () => requestWithRetry("/api/quizzes/past/all");
 
-export const getMyPastQuizzes = () => request("/api/quizzes/past/mine");
+export const getMyPastQuizzes = () => requestWithRetry("/api/quizzes/past/mine");
 
-export const getExaminerStats = () => request("/api/quizzes/stats/mine");
+export const getExaminerStats = () => requestWithRetry("/api/quizzes/stats/mine");
 
 export const getCandidateQuizData = (id) => request(`/api/quizzes/${id}/candidate-data`);
 

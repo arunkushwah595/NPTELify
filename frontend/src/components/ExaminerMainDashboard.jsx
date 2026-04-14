@@ -324,8 +324,13 @@ export default function ExaminerMainDashboard() {
   const [error, setError]   = useState(null);
 
   const loadQuizzes = () => {
+    setLoading(true);
+    setError(null);
     getMyQuizzes()
       .then(data => {
+        if (!Array.isArray(data)) {
+          throw new Error("Invalid response format from server");
+        }
         setQuizzes(data);
         setLoading(false);
 
@@ -334,7 +339,15 @@ export default function ExaminerMainDashboard() {
         data.forEach(quiz => {
           if (quiz.scheduledDateTime) {
             const scheduled = new Date(quiz.scheduledDateTime);
-            const endTime = new Date(scheduled.getTime() + quiz.durationMinutes * 60 * 1000);
+            const durationMinutes = Number(quiz.durationMinutes) || 60;
+            
+            // Validate duration is not NaN
+            if (isNaN(durationMinutes)) {
+              console.warn(`[ExaminerMainDashboard] Quiz "${quiz.title}" has invalid duration:`, quiz.durationMinutes);
+              return;
+            }
+            
+            const endTime = new Date(scheduled.getTime() + durationMinutes * 60 * 1000);
             const timeUntilStart = scheduled.getTime() - now.getTime();
             const timeUntilEnd = endTime.getTime() - now.getTime();
             const oneHour = 60 * 60 * 1000;
@@ -350,7 +363,11 @@ export default function ExaminerMainDashboard() {
           }
         });
       })
-      .catch(e  => { setError(e.message); setLoading(false); });
+      .catch(e => { 
+        console.error("[ExaminerMainDashboard] Error loading quizzes:", e);
+        setError(e.message || "Failed to load quizzes. Please check your connection and try again.");
+        setLoading(false); 
+      });
   };
 
   useEffect(() => {

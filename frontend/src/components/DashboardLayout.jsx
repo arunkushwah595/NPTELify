@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getMyUpcomingQuizzes, getMyPastQuizzes, getUpcomingQuizzes, getPastQuizzes } from "../api/quizApi";
 import NotificationCenter from "./NotificationCenter";
 import ProfileDropdown from "./ProfileDropdown";
 import ExaminerSidebar from "./ExaminerSidebar";
@@ -110,22 +111,15 @@ function CalendarPanel() {
   useEffect(() => {
     const fetchQuizzes = async () => {
       try {
-        const upcomingEndpoint = role === "EXAMINER" ? "upcoming/mine" : "upcoming/all";
-        const pastEndpoint = role === "EXAMINER" ? "past/mine" : "past/all";
-        
         const [upcomingData, pastData] = await Promise.all([
-          fetch(`/api/quizzes/${upcomingEndpoint}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-          }).then(r => r.json()),
-          fetch(`/api/quizzes/${pastEndpoint}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-          }).then(r => r.json())
+          role === "EXAMINER" ? getMyUpcomingQuizzes() : getUpcomingQuizzes(),
+          role === "EXAMINER" ? getMyPastQuizzes() : getPastQuizzes()
         ]);
         
-        setUpcomingQuizzes(upcomingData || []);
-        setPastQuizzes(pastData || []);
+        setUpcomingQuizzes(Array.isArray(upcomingData) ? upcomingData : []);
+        setPastQuizzes(Array.isArray(pastData) ? pastData : []);
       } catch (e) {
-        console.error("Failed to fetch quizzes:", e);
+        console.error("[DashboardLayout] Failed to fetch quizzes:", e);
         setUpcomingQuizzes([]);
         setPastQuizzes([]);
       } finally {
