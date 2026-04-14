@@ -72,11 +72,22 @@ export default function ImportQuestionsPage() {
         continue;
       }
 
+      // Filter out "N/A" options for true/false questions
+      let allOptions = [opt1, opt2, opt3, opt4];
+      let validOptions = allOptions.filter(o => o.toUpperCase() !== "N/A");
+      let newCorrectIdx = parseInt(correctIdx);
+      
+      // If we filtered out options, adjust the correct index
+      if (validOptions.length < allOptions.length) {
+        // For true/false questions, we only keep the valid options
+        newCorrectIdx = validOptions.findIndex(o => o === allOptions[parseInt(correctIdx)]);
+      }
+
       parsed.push({
         rowNumber: i + 1,
         text,
-        options: [opt1, opt2, opt3, opt4],
-        correctAnswerIndex: parseInt(correctIdx),
+        options: validOptions,
+        correctAnswerIndex: newCorrectIdx,
         subject,
         difficulty: difficulty.toLowerCase(),
       });
