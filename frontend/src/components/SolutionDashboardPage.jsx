@@ -176,8 +176,9 @@ export default function SolutionDashboardPage() {
   if (error)   return <div style={{ padding:40, textAlign:"center", color:"#dc2626" }}>Error: {error}</div>;
   if (!detail) return null;
 
-  // If quiz hasn't ended yet, show message
-  if (quiz && !quizEnded) {
+  // If quiz hasn't ended yet and it's a single-attempt quiz, show message
+  // For multi-attempt quizzes, solutions are available immediately
+  if (quiz && !quizEnded && !quiz.allowMultipleAttempts) {
     const scheduled = new Date(quiz.scheduledDateTime);
     let endTime;
     if (quiz.schedulingMode === "WINDOW" && quiz.windowEndDateTime) {
