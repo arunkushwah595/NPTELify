@@ -8,6 +8,7 @@ import ExaminerRoutes from './routes/examinerRoutes';
 import { notificationStore } from './utils/notificationStore';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
 import { SessionWarningModal } from './components/SessionWarningModal';
+import FeedbackButton from './components/FeedbackButton';
 
 // Component to sync auth state with notification store
 function NotificationSyncProvider({ children }) {
@@ -89,6 +90,7 @@ const App = () => {
             <InactivityManager>
               <NotificationSyncProvider>
                 <AppRoutes />
+                <FeedbackButton />
               </NotificationSyncProvider>
             </InactivityManager>
         </AuthProvider>
