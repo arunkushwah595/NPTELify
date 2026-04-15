@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthRoutes from './routes/authRoutes';
 import CandidateRoutes from './routes/candidateRoutes';
@@ -93,6 +94,7 @@ const App = () => {
                 <FeedbackButton />
               </NotificationSyncProvider>
             </InactivityManager>
+            <Analytics />
         </AuthProvider>
     );
 };

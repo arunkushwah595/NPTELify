@@ -30,6 +30,36 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        String lowercase = path.toLowerCase();
+        
+        // Skip JWT filter for:
+        // - Root path, static assets, images, css, js, fonts
+        // - HTML files, Auth endpoints
+        return path.equals("/") ||
+               path.equals("/favicon.ico") || 
+               lowercase.endsWith(".png") ||
+               lowercase.endsWith(".jpg") ||
+               lowercase.endsWith(".jpeg") ||
+               lowercase.endsWith(".gif") ||
+               lowercase.endsWith(".svg") ||
+               lowercase.endsWith(".ico") ||
+               lowercase.endsWith(".css") ||
+               lowercase.endsWith(".js") ||
+               lowercase.endsWith(".map") ||
+               lowercase.endsWith(".webfont") ||
+               lowercase.endsWith(".ttf") ||
+               lowercase.endsWith(".woff") ||
+               lowercase.endsWith(".woff2") ||
+               path.startsWith("/static/") || 
+               path.startsWith("/assets/") ||
+               path.startsWith("/public/") ||
+               path.endsWith(".html") ||
+               path.startsWith("/api/auth/");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
