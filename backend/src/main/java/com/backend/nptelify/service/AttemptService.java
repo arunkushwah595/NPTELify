@@ -151,6 +151,7 @@ public class AttemptService {
                 attempt.getQuiz().getId(),
                 attempt.getQuiz().getTitle(),
                 attempt.getQuiz().getSubject(),
+                attempt.getCandidate().getName(),
                 attempt.getScore(),
                 attempt.getTotalQuestions(),
                 attempt.getSubmittedAt()

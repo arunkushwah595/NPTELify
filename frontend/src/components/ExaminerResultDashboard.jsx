@@ -308,7 +308,7 @@ export default function ExaminerResultDashboard() {
               <table style={{ width:"100%",borderCollapse:"collapse" }}>
                 <thead>
                   <tr style={{ background:C.altBg }}>
-                    {["#","Score","Percentage","Status","Submitted"].map(h=>(
+                    {["#","Candidate Name","Score","Percentage","Status","Submitted"].map(h=>(
                       <th key={h} style={{ padding:"10px 16px",textAlign:"left",fontSize:12,fontWeight:700,color:C.muted }}>{h}</th>
                     ))}
                   </tr>
@@ -320,6 +320,7 @@ export default function ExaminerResultDashboard() {
                     return (
                       <tr key={a.id} style={{ borderBottom:`1px solid ${C.border}`,background:i%2===0?C.card:C.bg }}>
                         <td style={{ padding:"12px 16px",fontSize:13,color:C.muted,fontWeight:700 }}>{i+1}</td>
+                        <td style={{ padding:"12px 16px",fontSize:13,fontWeight:700,color:C.navy }}>{a.candidateName || "—"}</td>
                         <td style={{ padding:"12px 16px",fontSize:13,fontWeight:700,color:C.navy }}>{a.score}/{a.totalQuestions}</td>
                         <td style={{ padding:"12px 16px" }}>
                           <div style={{ display:"flex",alignItems:"center",gap:8 }}>
