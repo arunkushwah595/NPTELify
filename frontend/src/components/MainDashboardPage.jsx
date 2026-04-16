@@ -282,255 +282,261 @@ export default function MainDashboardPage() {
       ) : error ? (
         <div style={{ padding:"16px", borderRadius:12, background:"#fef2f2", border:"1px solid #fca5a5", color:"#991b1b", fontSize:13 }}>{error}</div>
       ) : (
-        /* Three columns */
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:18, flex:1, overflow:"hidden" }}>
-          {/* Live Quizzes */}
-          <div style={{ background:C.card, borderRadius:18, border:`1.5px solid ${C.border}`, padding:"20px", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-            <div style={{ fontSize:14, fontWeight:800, color:C.navy, marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ width:8, height:8, borderRadius:"50%", background:"#dc2626", display:"inline-block" }}/>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" style={{ width:16, height:16 }}><circle cx="12" cy="12" r="10"/></svg>
-              Live Now
-            </div>
-            {liveQuizzes.length === 0 ? (
-              <div style={{ fontSize:13, color:C.muted, padding:"12px 0" }}>No live quizzes running right now.</div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
-                {liveQuizzes.map(q => {
-                  const data = candidateQuizData[q.id] || { attemptCount: 0, bestScore: 0, hasAttempted: false, totalQuestions: q.questions?.length || 0, allowMultipleAttempts: q.allowMultipleAttempts };
-                  const qDate = new Date(q.scheduledDateTime);
-                  const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
-                  const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
-                  
-                  // For WINDOW mode, get window end time
-                  let windowEndStr = "";
-                  if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
-                    const windowEndDate = new Date(q.windowEndDateTime);
-                    windowEndStr = windowEndDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
-                  }
-                  
-                  // Get backend status info
-                  const statusInfo = quizStatusData[q.id];
-                  const remainingMinutes = statusInfo?.remainingMinutes ?? q.durationMinutes;
-                  const isLateJoin = statusInfo?.isLateJoin || false;
-                  const minutesLate = statusInfo?.minutesLate || 0;
-                  const effectiveDurationMinutes = statusInfo?.effectiveDurationMinutes || q.durationMinutes;
-                  
-                  // Calculate remaining time
-                  let endDateTime = null;
-                  if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
-                    endDateTime = new Date(q.windowEndDateTime);
-                  } else if (q.schedulingMode === "FIXED_TIME" && q.scheduledDateTime) {
-                    const scheduled = new Date(q.scheduledDateTime);
-                    endDateTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
-                  }
-                  let remainingTimeStr = "";
-                  if (endDateTime) {
-                    const now = new Date();
-                    let diffMs = endDateTime - now;
-                    if (diffMs > 0) {
-                      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                      diffMs %= (1000 * 60 * 60 * 24);
-                      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-                      diffMs %= (1000 * 60 * 60);
-                      const mins = Math.floor(diffMs / (1000 * 60));
-                      const secs = Math.floor((diffMs % (1000 * 60)) / 1000);
-                      const parts = [];
-                      if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-                      if (hours > 0) parts.push(`${hours} hr${hours !== 1 ? "s" : ""}`);
-                      if (mins > 0) parts.push(`${mins} min`);
-                      if (secs > 0 || parts.length === 0) parts.push(`${secs} sec`);
-                      remainingTimeStr = parts.slice(0, 3).join(" ");
-                    }
-                  }
-                  
-                  // Check if quiz has saved progress (resume available)
-                  const hasSavedProgress = quizProgressStore.isInProgress(q.id);
-                  
-                  // Determine button state and text
-                  let buttonText = "Start Quiz";
-                  let buttonDisabled = false;
-                  let buttonColor = C.blue;
-                  let buttonTextColor = "#fff";
-                  
-                  if (hasSavedProgress) {
-                    buttonText = "▶ Resume";
-                    buttonDisabled = false;
-                    buttonColor = "#ea580c";
-                    buttonTextColor = "#fff";
-                  } else if (data.hasAttempted && !data.allowMultipleAttempts) {
-                    buttonText = "✓ Finished";
-                    buttonDisabled = true;
-                    buttonColor = C.green;
-                    buttonTextColor = "#fff";
-                  } else if (data.hasAttempted && data.allowMultipleAttempts) {
-                    buttonText = "Retake Quiz";
-                    buttonDisabled = false;
-                  }
-                  
-                  const bestPercentage = data.totalQuestions > 0 ? Math.round((data.bestScore / data.totalQuestions) * 100) : 0;
-
-                  return (
-                  <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${isLateJoin ? "#f59e0b" : C.border}`, background:isLateJoin ? "#fffbeb" : C.bg }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6 }}>
-                      <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35 }}>{q.title}</div>
-                      <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, background:"#fff3ee", color:C.orange, whiteSpace:"nowrap", flexShrink:0 }}>{q.durationMinutes}m</span>
-                    </div>
-                    {isLateJoin && (
-                      <div style={{ fontSize:10, fontWeight:700, color:"#d97706", background:"#fef3c7", padding:"6px 8px", borderRadius:6, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14, flexShrink:0 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg>
-                        <span>Late join: {minutesLate} min late • {effectiveDurationMinutes} min available</span>
-                      </div>
-                    )}
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-                      <Badge subject={q.subject} />
-                      {remainingTimeStr && (
-                        <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:C.orange }}>
-                          <span style={{ fontSize:9 }}>📅 {remainingTimeStr} left</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Time info section */}
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8, paddingBottom:8, borderBottom:`1px solid ${isLateJoin ? "#fcd34d" : C.border}` }}>
-                      <div style={{ display:"flex", flexDirection:"column", gap:1, flex:1 }}>
-                        <span style={{ fontSize:10, fontWeight:600, color:C.blue }}>{dateStr}</span>
-                        {q.schedulingMode === "WINDOW" ? (
-                          <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                            {timeStr}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                            {timeStr} • {q.durationMinutes}m
-                          </span>
-                        )}
-                      </div>
-                      <span style={{ padding:"4px 10px", borderRadius:6, fontSize:10, fontWeight:800, background:"#dc262620", color:"#dc2626", textTransform:"uppercase", letterSpacing:"0.5px", whiteSpace:"nowrap" }}>● LIVE</span>
-                    </div>
-                    
-                    <button onClick={() => navigate(`/candidate/quiz/${q.id}`)}
-                      disabled={buttonDisabled}
-                      style={{ padding:"8px 16px", borderRadius:10, background:buttonDisabled && buttonColor === C.green ? `${C.green} !important` : buttonDisabled ? "#d1d5db" : buttonColor, color:buttonDisabled && buttonColor === C.green ? `#fff !important` : buttonDisabled ? "#6b7280" : buttonTextColor, border:buttonDisabled && buttonColor === C.green ? `2px solid ${C.green}` : "none", fontSize:13, fontWeight:700, cursor:buttonDisabled ? "not-allowed" : "pointer", fontFamily:C.font, width:"100%", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8, minHeight:"36px", WebkitAppearance:"none", MozAppearance:"none" }}>
-                      {buttonDisabled && buttonColor === C.green ? (
-                        <>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" style={{ width:16, height:16 }}><path d="M5 13l4 4L19 7"/></svg>
-                          <span>{buttonText}</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                          <span>{buttonText}</span>
-                        </>
-                      )}
-                    </button>
+        /* Three columns - only show panels with content */
+        (() => {
+          const visiblePanels = [];
+          if (liveQuizzes.length > 0) visiblePanels.push("live");
+          if (upcomingQuizzes.length > 0) visiblePanels.push("upcoming");
+          if (completed.length > 0) visiblePanels.push("completed");
+          
+          if (visiblePanels.length === 0) {
+            return <div style={{ fontSize:13,color:C.muted,padding:"20px", textAlign:"center" }}>No quizzes to display.</div>;
+          }
+          
+          const gridCols = visiblePanels.length === 1 ? "1fr" : visiblePanels.length === 2 ? "1fr 1fr" : "1fr 1fr 1fr";
+          
+          return (
+            <div style={{ display:"grid", gridTemplateColumns:gridCols, gap:18, flex:1, overflow:"hidden" }}>
+              {visiblePanels.includes("live") && (
+                <div style={{ background:C.card, borderRadius:18, border:`1.5px solid ${C.border}`, padding:"20px", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:C.navy, marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
+                    <span style={{ width:8, height:8, borderRadius:"50%", background:"#dc2626", display:"inline-block" }}/>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" style={{ width:16, height:16 }}><circle cx="12" cy="12" r="10"/></svg>
+                    Live Now
                   </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
+                    {liveQuizzes.map(q => {
+                      const data = candidateQuizData[q.id] || { attemptCount: 0, bestScore: 0, hasAttempted: false, totalQuestions: q.questions?.length || 0, allowMultipleAttempts: q.allowMultipleAttempts };
+                      const qDate = new Date(q.scheduledDateTime);
+                      const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
+                      const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+                      
+                      // For WINDOW mode, get window end time
+                      let windowEndStr = "";
+                      if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+                        const windowEndDate = new Date(q.windowEndDateTime);
+                        windowEndStr = windowEndDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+                      }
+                      
+                      // Get backend status info
+                      const statusInfo = quizStatusData[q.id];
+                      const remainingMinutes = statusInfo?.remainingMinutes ?? q.durationMinutes;
+                      const isLateJoin = statusInfo?.isLateJoin || false;
+                      const minutesLate = statusInfo?.minutesLate || 0;
+                      const effectiveDurationMinutes = statusInfo?.effectiveDurationMinutes || q.durationMinutes;
+                      
+                      // Calculate remaining time
+                      let endDateTime = null;
+                      if (q.schedulingMode === "WINDOW" && q.windowEndDateTime) {
+                        endDateTime = new Date(q.windowEndDateTime);
+                      } else if (q.schedulingMode === "FIXED_TIME" && q.scheduledDateTime) {
+                        const scheduled = new Date(q.scheduledDateTime);
+                        endDateTime = new Date(scheduled.getTime() + q.durationMinutes * 60 * 1000);
+                      }
+                      let remainingTimeStr = "";
+                      if (endDateTime) {
+                        const now = new Date();
+                        let diffMs = endDateTime - now;
+                        if (diffMs > 0) {
+                          const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                          diffMs %= (1000 * 60 * 60 * 24);
+                          const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                          diffMs %= (1000 * 60 * 60);
+                          const mins = Math.floor(diffMs / (1000 * 60));
+                          const secs = Math.floor((diffMs % (1000 * 60)) / 1000);
+                          const parts = [];
+                          if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+                          if (hours > 0) parts.push(`${hours} hr${hours !== 1 ? "s" : ""}`);
+                          if (mins > 0) parts.push(`${mins} min`);
+                          if (secs > 0 || parts.length === 0) parts.push(`${secs} sec`);
+                          remainingTimeStr = parts.slice(0, 3).join(" ");
+                        }
+                      }
+                      
+                      // Check if quiz has saved progress (resume available)
+                      const hasSavedProgress = quizProgressStore.isInProgress(q.id);
+                      
+                      // Determine button state and text
+                      let buttonText = "Start Quiz";
+                      let buttonDisabled = false;
+                      let buttonColor = C.blue;
+                      let buttonTextColor = "#fff";
+                      
+                      if (hasSavedProgress) {
+                        buttonText = "▶ Resume";
+                        buttonDisabled = false;
+                        buttonColor = "#ea580c";
+                        buttonTextColor = "#fff";
+                      } else if (data.hasAttempted && !data.allowMultipleAttempts) {
+                        buttonText = "✓ Finished";
+                        buttonDisabled = true;
+                        buttonColor = C.green;
+                        buttonTextColor = "#fff";
+                      } else if (data.hasAttempted && data.allowMultipleAttempts) {
+                        buttonText = "Retake Quiz";
+                        buttonDisabled = false;
+                      }
+                      
+                      const bestPercentage = data.totalQuestions > 0 ? Math.round((data.bestScore / data.totalQuestions) * 100) : 0;
 
-          {/* Upcoming Quizzes */}
-          <div style={{ background:C.card, borderRadius:18, border:`1.5px solid ${C.border}`, padding:"20px", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-            <div style={{ fontSize:14, fontWeight:800, color:C.navy, marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ width:8, height:8, borderRadius:"50%", background:C.orange, display:"inline-block" }}/>
-              <svg viewBox="0 0 24 24" fill="none" stroke={C.orange} strokeWidth="2" style={{ width:16, height:16 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg>
-              Upcoming
-            </div>
-            {upcomingQuizzes.length === 0 ? (
-              <div style={{ fontSize:13, color:C.muted, padding:"12px 0" }}>No upcoming quizzes scheduled.</div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
-                {upcomingQuizzes.map(q => {
-                  const qDate = new Date(q.scheduledDateTime);
-                  const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
-                  const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
-                  return (
-                  <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${C.border}`, background:"#fffbeb" }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6 }}>
-                      <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35 }}>{q.title}</div>
-                      <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, background:"#fff3ee", color:C.orange, whiteSpace:"nowrap", flexShrink:0 }}>{q.durationMinutes}m</span>
-                    </div>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                      <Badge subject={q.subject} />
-                      <CountdownTimer scheduledDateTime={q.scheduledDateTime} />
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:1, marginBottom:6, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>
-                      <span style={{ fontSize:10, fontWeight:600, color:C.blue }}>{dateStr}</span>
-                      <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {timeStr}</span>
-                    </div>
-                    <button disabled style={{ padding:"6px 16px", borderRadius:10, background:"#e5e7eb", color:"#9ca3af", border:"none", fontSize:12, fontWeight:700, cursor:"not-allowed", fontFamily:C.font, width:"100%" }}>
-                      Coming Soon...
-                    </button>
-                  </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Completed */}
-          <div style={{ background:C.card, borderRadius:18, border:`1.5px solid ${C.border}`, padding:"20px", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-            <div style={{ fontSize:14, fontWeight:800, color:C.navy, marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ width:8, height:8, borderRadius:"50%", background:C.blue, display:"inline-block" }}/>
-              <svg viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" style={{ width:16, height:16 }}><path d="M22 11.08V12a10 10 0 11-5.93-9.14M22 4l-8.97 9.97-4.22-3.604"/></svg>
-              Completed
-            </div>
-            {completed.length === 0 ? (
-              <div style={{ fontSize:13, color:C.muted, padding:"12px 0" }}>No completed quizzes yet.</div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
-                {completed.map(q => {
-                  const att  = attempts.find(a => a.quizId === q.id);
-                  const data = candidateQuizData[q.id];
-                  const pct  = att?.percentage ?? 0;
-                  const pass = pct >= 60;
-                  const qDate = new Date(q.scheduledDateTime);
-                  const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
-                  const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
-                  
-                  return (
-                    <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${C.border}`, background:C.bg }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6, alignItems:"center" }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35, flex:1 }}>{q.title}</div>
-                        <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, whiteSpace:"nowrap", flexShrink:0, background:pass?"#f0fdf4":"#fef2f2", color:pass?"#16a34a":"#dc2626", display:"flex", alignItems:"center", gap:4 }}>{pass ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14, height:14 }}><path d="M5 13l4 4L19 7"/></svg> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14, height:14 }}><path d="M6 18L18 6M6 6l12 12"/></svg>} {pass ? "Pass" : "Fail"}</span>
-                      </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                        <div style={{ flex:1, height:5, borderRadius:999, background:C.border, overflow:"hidden" }}>
-                          <div style={{ width:`${pct}%`, height:"100%", borderRadius:999, background:pass?"#16a34a":"#dc2626" }}/>
+                      return (
+                      <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${isLateJoin ? "#f59e0b" : C.border}`, background:isLateJoin ? "#fffbeb" : C.bg }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35 }}>{q.title}</div>
+                          <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, background:"#fff3ee", color:C.orange, whiteSpace:"nowrap", flexShrink:0 }}>{q.durationMinutes}m</span>
                         </div>
-                        <span style={{ fontSize:11, fontWeight:700, color:pass?"#16a34a":"#dc2626", minWidth:44 }}>{att?.score}/{att?.totalQuestions}</span>
-                      </div>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-                        <Badge subject={q.subject} />
-                        {data && data.attemptCount > 1 && (
-                          <span style={{ fontSize:10, fontWeight:700, color:C.orange, background:"#fff3ee", padding:"2px 8px", borderRadius:6 }}>
-                            {data.attemptCount} attempts
-                          </span>
+                        {isLateJoin && (
+                          <div style={{ fontSize:10, fontWeight:700, color:"#d97706", background:"#fef3c7", padding:"6px 8px", borderRadius:6, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14, flexShrink:0 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg>
+                            <span>Late join: {minutesLate} min late • {effectiveDurationMinutes} min available</span>
+                          </div>
                         )}
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                          <Badge subject={q.subject} />
+                          {remainingTimeStr && (
+                            <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:C.orange }}>
+                              <span style={{ fontSize:9 }}>📅 {remainingTimeStr} left</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Time info section */}
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8, paddingBottom:8, borderBottom:`1px solid ${isLateJoin ? "#fcd34d" : C.border}` }}>
+                          <div style={{ display:"flex", flexDirection:"column", gap:1, flex:1 }}>
+                            <span style={{ fontSize:10, fontWeight:600, color:C.blue }}>{dateStr}</span>
+                            {q.schedulingMode === "WINDOW" ? (
+                              <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                {timeStr}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                {timeStr} • {q.durationMinutes}m
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ padding:"4px 10px", borderRadius:6, fontSize:10, fontWeight:800, background:"#dc262620", color:"#dc2626", textTransform:"uppercase", letterSpacing:"0.5px", whiteSpace:"nowrap" }}>● LIVE</span>
+                        </div>
+                        
+                        <button onClick={() => navigate(`/candidate/quiz/${q.id}`)}
+                          disabled={buttonDisabled}
+                          style={{ padding:"8px 16px", borderRadius:10, background:buttonDisabled && buttonColor === C.green ? `${C.green} !important` : buttonDisabled ? "#d1d5db" : buttonColor, color:buttonDisabled && buttonColor === C.green ? `#fff !important` : buttonDisabled ? "#6b7280" : buttonTextColor, border:buttonDisabled && buttonColor === C.green ? `2px solid ${C.green}` : "none", fontSize:13, fontWeight:700, cursor:buttonDisabled ? "not-allowed" : "pointer", fontFamily:C.font, width:"100%", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8, minHeight:"36px", WebkitAppearance:"none", MozAppearance:"none" }}>
+                          {buttonDisabled && buttonColor === C.green ? (
+                            <>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" style={{ width:16, height:16 }}><path d="M5 13l4 4L19 7"/></svg>
+                              <span>{buttonText}</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                              <span>{buttonText}</span>
+                            </>
+                          )}
+                        </button>
                       </div>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>
-                        <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {visiblePanels.includes("upcoming") && (
+                <div style={{ background:C.card, borderRadius:18, border:`1.5px solid ${C.border}`, padding:"20px", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:C.navy, marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
+                    <span style={{ width:8, height:8, borderRadius:"50%", background:C.orange, display:"inline-block" }}/>
+                    <svg viewBox="0 0 24 24" fill="none" stroke={C.orange} strokeWidth="2" style={{ width:16, height:16 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg>
+                    Upcoming
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
+                    {upcomingQuizzes.map(q => {
+                      const qDate = new Date(q.scheduledDateTime);
+                      const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
+                      const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+                      return (
+                      <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${C.border}`, background:"#fffbeb" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35 }}>{q.title}</div>
+                          <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, background:"#fff3ee", color:C.orange, whiteSpace:"nowrap", flexShrink:0 }}>{q.durationMinutes}m</span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                          <Badge subject={q.subject} />
+                          <CountdownTimer scheduledDateTime={q.scheduledDateTime} />
+                        </div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:1, marginBottom:6, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>
                           <span style={{ fontSize:10, fontWeight:600, color:C.blue }}>{dateStr}</span>
                           <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {timeStr}</span>
                         </div>
-                        <span style={{ fontSize:11, fontWeight:700, color:pass?"#16a34a":"#dc2626" }}>{pct.toFixed(1)}%</span>
+                        <button disabled style={{ padding:"6px 16px", borderRadius:10, background:"#e5e7eb", color:"#9ca3af", border:"none", fontSize:12, fontWeight:700, cursor:"not-allowed", fontFamily:C.font, width:"100%" }}>
+                          Coming Soon...
+                        </button>
                       </div>
-                      <button onClick={() => navigate(`/candidate/results?quizId=${q.id}`)}
-                        style={{ padding:"6px 14px", borderRadius:8, background:C.blue, color:"#fff", border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:C.font, width:"100%", transition:"all 0.2s", opacity:0.9, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
-                        onMouseEnter={(e) => e.target.style.opacity = "1"}
-                        onMouseLeave={(e) => e.target.style.opacity = "0.9"}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M3 3v18h18M3 18l4-5 4 3 5-7 5 3"/></svg>
-                        View Result
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {visiblePanels.includes("completed") && (
+                <div style={{ background:C.card, borderRadius:18, border:`1.5px solid ${C.border}`, padding:"20px", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:C.navy, marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
+                    <span style={{ width:8, height:8, borderRadius:"50%", background:C.blue, display:"inline-block" }}/>
+                    <svg viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" style={{ width:16, height:16 }}><path d="M22 11.08V12a10 10 0 11-5.93-9.14M22 4l-8.97 9.97-4.22-3.604"/></svg>
+                    Completed
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10, overflowY:"auto", flex:1 }}>
+                    {completed.map(q => {
+                      const att  = attempts.find(a => a.quizId === q.id);
+                      const data = candidateQuizData[q.id];
+                      const pct  = att?.percentage ?? 0;
+                      const pass = pct >= 60;
+                      const qDate = new Date(q.scheduledDateTime);
+                      const dateStr = qDate.toLocaleDateString("en-IN", { weekday:"short", day:"2-digit", month:"short", year:"numeric" });
+                      const timeStr = qDate.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+                      
+                      return (
+                        <div key={q.id} style={{ padding:"12px 14px", borderRadius:12, border:`1.5px solid ${C.border}`, background:C.bg }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:6, alignItems:"center" }}>
+                            <div style={{ fontSize:13, fontWeight:700, color:C.navy, lineHeight:1.35, flex:1 }}>{q.title}</div>
+                            <span style={{ padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, whiteSpace:"nowrap", flexShrink:0, background:pass?"#f0fdf4":"#fef2f2", color:pass?"#16a34a":"#dc2626", display:"flex", alignItems:"center", gap:4 }}>{pass ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14, height:14 }}><path d="M5 13l4 4L19 7"/></svg> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width:14, height:14 }}><path d="M6 18L18 6M6 6l12 12"/></svg>} {pass ? "Pass" : "Fail"}</span>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                            <div style={{ flex:1, height:5, borderRadius:999, background:C.border, overflow:"hidden" }}>
+                              <div style={{ width:`${pct}%`, height:"100%", borderRadius:999, background:pass?"#16a34a":"#dc2626" }}/>
+                            </div>
+                            <span style={{ fontSize:11, fontWeight:700, color:pass?"#16a34a":"#dc2626", minWidth:44 }}>{att?.score}/{att?.totalQuestions}</span>
+                          </div>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+                            <Badge subject={q.subject} />
+                            {data && data.attemptCount > 1 && (
+                              <span style={{ fontSize:10, fontWeight:700, color:C.orange, background:"#fff3ee", padding:"2px 8px", borderRadius:6 }}>
+                                {data.attemptCount} attempts
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>
+                            <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
+                              <span style={{ fontSize:10, fontWeight:600, color:C.blue }}>{dateStr}</span>
+                              <span style={{ fontSize:9, color:C.muted, display:"flex", alignItems:"center", gap:3 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:12, height:12 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {timeStr}</span>
+                            </div>
+                            <span style={{ fontSize:11, fontWeight:700, color:pass?"#16a34a":"#dc2626" }}>{pct.toFixed(1)}%</span>
+                          </div>
+                          <button onClick={() => navigate(`/candidate/results?quizId=${q.id}`)}
+                            style={{ padding:"6px 14px", borderRadius:8, background:C.blue, color:"#fff", border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:C.font, width:"100%", transition:"all 0.2s", opacity:0.9, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
+                            onMouseEnter={(e) => e.target.style.opacity = "1"}
+                            onMouseLeave={(e) => e.target.style.opacity = "0.9"}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width:14, height:14 }}><path d="M3 3v18h18M3 18l4-5 4 3 5-7 5 3"/></svg>
+                            View Result
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()
       )}
     </div>
   );

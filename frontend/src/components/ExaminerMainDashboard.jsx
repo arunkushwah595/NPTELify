@@ -435,57 +435,68 @@ export default function ExaminerMainDashboard() {
         <StatCardSvg icon="past" label="Past Quizzes"           value={past.length}     color={C.orange} />
       </div>
 
-      {/* Three-column */}
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:18,flex:1,overflow:"hidden" }}>
+      {/* Three-column - only show panels with content */}
+      {(() => {
+        const visiblePanels = [];
+        if (!loading && !error && upcoming.length > 0) visiblePanels.push("upcoming");
+        if (!loading && !error && live.length > 0) visiblePanels.push("live");
+        if (!loading && !error && past.length > 0) visiblePanels.push("past");
+        
+        if (visiblePanels.length === 0 && !loading && !error) {
+          return <div style={{ fontSize:13,color:C.muted,padding:"20px", textAlign:"center" }}>No quizzes to display.</div>;
+        }
+        
+        const gridCols = visiblePanels.length === 1 ? "1fr" : visiblePanels.length === 2 ? "1fr 1fr" : "1fr 1fr 1fr";
+        
+        return (
+          <div style={{ display:"grid",gridTemplateColumns:gridCols,gap:18,flex:1,overflow:"hidden" }}>
+            {visiblePanels.includes("upcoming") && (
+              <div style={{ background:C.card,borderRadius:18,border:`1.5px solid ${C.border}`,padding:"20px",display:"flex",flexDirection:"column",overflow:"hidden" }}>
+                <div style={{ fontSize:14,fontWeight:800,color:C.navy,marginBottom:14,display:"flex",alignItems:"center",gap:7 }}>
+                  <span style={{ width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block" }}/>
+                  <svg viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2" style={{ width:16, height:16 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg>
+                  Upcoming Quizzes
+                </div>
+                {loading ? <LoadingState/> : error ? <ErrorState message={error}/> : (
+                  <div style={{ display:"flex",flexDirection:"column",gap:10,overflowY:"auto",flex:1 }}>
+                    {upcoming.map(q => <QuizCard key={q.id} quiz={q} onRefresh={loadQuizzes} quizType="upcoming"/>)}
+                  </div>
+                )}
+              </div>
+            )}
 
-        {/* Upcoming */}
-        <div style={{ background:C.card,borderRadius:18,border:`1.5px solid ${C.border}`,padding:"20px",display:"flex",flexDirection:"column",overflow:"hidden" }}>
-          <div style={{ fontSize:14,fontWeight:800,color:C.navy,marginBottom:14,display:"flex",alignItems:"center",gap:7 }}>
-            <span style={{ width:8,height:8,borderRadius:"50%",background:C.green,display:"inline-block" }}/>
-            <svg viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2" style={{ width:16, height:16 }}><path d="M12 2v20M2 12h20M4 4l16 16M20 4l-16 16"/></svg>
-            Upcoming Quizzes
-          </div>
-          {loading ? <LoadingState/> : error ? <ErrorState message={error}/> : upcoming.length === 0 ? (
-            <div style={{ fontSize:13,color:C.muted,padding:"12px 0" }}>No upcoming quizzes scheduled.</div>
-          ) : (
-            <div style={{ display:"flex",flexDirection:"column",gap:10,overflowY:"auto",flex:1 }}>
-              {upcoming.map(q => <QuizCard key={q.id} quiz={q} onRefresh={loadQuizzes} quizType="upcoming"/>)}
-            </div>
-          )}
-        </div>
+            {visiblePanels.includes("live") && (
+              <div style={{ background:C.card,borderRadius:18,border:`1.5px solid ${C.border}`,padding:"20px",display:"flex",flexDirection:"column",overflow:"hidden" }}>
+                <div style={{ fontSize:14,fontWeight:800,color:C.navy,marginBottom:14,display:"flex",alignItems:"center",gap:7 }}>
+                  <span style={{ width:8,height:8,borderRadius:"50%",background:"#dc2626",display:"inline-block",animation:"pulse 1s infinite" }}/>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" style={{ width:16, height:16 }}><circle cx="12" cy="12" r="10"/></svg>
+                  Live Quizzes
+                </div>
+                {loading ? <LoadingState/> : error ? <ErrorState message={error}/> : (
+                  <div style={{ display:"flex",flexDirection:"column",gap:10,overflowY:"auto",flex:1 }}>
+                    {live.map(q => <QuizCard key={q.id} quiz={q} onRefresh={loadQuizzes} quizType="live"/>)}
+                  </div>
+                )}
+              </div>
+            )}
 
-        {/* Live */}
-        <div style={{ background:C.card,borderRadius:18,border:`1.5px solid ${C.border}`,padding:"20px",display:"flex",flexDirection:"column",overflow:"hidden" }}>
-          <div style={{ fontSize:14,fontWeight:800,color:C.navy,marginBottom:14,display:"flex",alignItems:"center",gap:7 }}>
-            <span style={{ width:8,height:8,borderRadius:"50%",background:"#dc2626",display:"inline-block",animation:"pulse 1s infinite" }}/>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" style={{ width:16, height:16 }}><circle cx="12" cy="12" r="10"/></svg>
-            Live Quizzes
+            {visiblePanels.includes("past") && (
+              <div style={{ background:C.card,borderRadius:18,border:`1.5px solid ${C.border}`,padding:"20px",display:"flex",flexDirection:"column",overflow:"hidden" }}>
+                <div style={{ fontSize:14,fontWeight:800,color:C.navy,marginBottom:14,display:"flex",alignItems:"center",gap:7 }}>
+                  <span style={{ width:8,height:8,borderRadius:"50%",background:C.orange,display:"inline-block" }}/>
+                  <svg viewBox="0 0 24 24" fill="none" stroke={C.orange} strokeWidth="2" style={{ width:16, height:16 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  Past Quizzes
+                </div>
+                {loading ? <LoadingState/> : error ? <ErrorState message={error}/> : (
+                  <div style={{ display:"flex",flexDirection:"column",gap:10,overflowY:"auto",flex:1 }}>
+                    {past.map(q => <QuizCard key={q.id} quiz={q} onRefresh={loadQuizzes} quizType="past"/>)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {loading ? <LoadingState/> : error ? <ErrorState message={error}/> : live.length === 0 ? (
-            <div style={{ fontSize:13,color:C.muted,padding:"12px 0" }}>No live quizzes at the moment.</div>
-          ) : (
-            <div style={{ display:"flex",flexDirection:"column",gap:10,overflowY:"auto",flex:1 }}>
-              {live.map(q => <QuizCard key={q.id} quiz={q} onRefresh={loadQuizzes} quizType="live"/>)}
-            </div>
-          )}
-        </div>
-
-        {/* Past */}
-        <div style={{ background:C.card,borderRadius:18,border:`1.5px solid ${C.border}`,padding:"20px",display:"flex",flexDirection:"column",overflow:"hidden" }}>
-          <div style={{ fontSize:14,fontWeight:800,color:C.navy,marginBottom:14,display:"flex",alignItems:"center",gap:7 }}>
-            <span style={{ width:8,height:8,borderRadius:"50%",background:C.orange,display:"inline-block" }}/>
-            <svg viewBox="0 0 24 24" fill="none" stroke={C.orange} strokeWidth="2" style={{ width:16, height:16 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Past Quizzes
-          </div>
-          {loading ? <LoadingState/> : error ? <ErrorState message={error}/> : past.length === 0 ? (
-            <div style={{ fontSize:13,color:C.muted,padding:"12px 0" }}>No past quizzes yet.</div>
-          ) : (
-            <div style={{ display:"flex",flexDirection:"column",gap:10,overflowY:"auto",flex:1 }}>
-              {past.map(q => <QuizCard key={q.id} quiz={q} onRefresh={loadQuizzes} quizType="past"/>)}
-            </div>
-          )}
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 }
