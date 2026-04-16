@@ -135,6 +135,8 @@ export function ProfileDropdown({ C, userName, onLogoutCallback, userRole = "Exa
             >
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>{getProfileIcon('profile')} Edit Profile</div>
             </button>
+            {/* Dark Mode Toggle - Disabled for now */}
+            {/* 
             <button
               onClick={handleThemeToggle}
               style={{
@@ -161,6 +163,7 @@ export function ProfileDropdown({ C, userName, onLogoutCallback, userRole = "Exa
             >
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>{isDarkMode ? getProfileIcon('sun') : getProfileIcon('moon')} {isDarkMode ? "Light Mode" : "Dark Mode"}</div>
             </button>
+            */}
             <button
               onClick={() => { navigate("/help"); setProfileOpen(false); }}
               style={{
